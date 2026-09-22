@@ -162,25 +162,30 @@ async function refreshPlaySelectors() {
     invoke<Instance[]>("list_instances"),
   ]);
   playAccount.innerHTML = accounts.map((a) => `<option value="${a.id}">${a.mc_name} [${a.kind}]</option>`).join("");
-  playInstance.innerHTML = instances.map((i) => `<option value="${i.game_version}">${i.name} — ${i.game_version}</option>`).join("");
+  playInstance.innerHTML = instances.map((i) => `<option value="${i.name}">${i.name} — ${i.game_version} (${i.loader})</option>`).join("");
 }
 
 playBtn.onclick = async () => {
   const accountId = playAccount.value;
-  const version = playInstance.value;
-  if (!accountId || !version) {
+  const instanceName = playInstance.value;
+  if (!accountId || !instanceName) {
     playStatus.textContent = "Pick an account and an instance first.";
     return;
   }
-  const accounts = await invoke<Account[]>("list_accounts");
+  const [accounts, instances] = await Promise.all([
+    invoke<Account[]>("list_accounts"),
+    invoke<Instance[]>("list_instances"),
+  ]);
   const acc = accounts.find((a) => a.id === accountId)!;
-  playStatus.textContent = `Launching ${version} as ${acc.mc_name}… (libraries + assets download first)`;
+  const inst = instances.find((i) => i.name === instanceName)!;
+  playStatus.textContent = `Launching ${inst.name} (${inst.game_version}) as ${acc.mc_name}… (libraries + assets download first)`;
   try {
     const r = await invoke<{ pid: number }>("launch_game", {
-      version,
+      version: inst.game_version,
       accountId: acc.id,
       accountName: acc.mc_name,
       accountUuid: acc.uuid,
+      instance: inst.name,
     });
     playStatus.textContent = `Game started (pid ${r.pid}).`;
   } catch (e) {

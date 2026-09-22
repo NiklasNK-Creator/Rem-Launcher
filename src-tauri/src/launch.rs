@@ -221,6 +221,7 @@ pub async fn launch_game(
     account_name: String,
     account_uuid: String,
     access_token: Option<String>,
+    instance: Option<String>,
 ) -> Result<LaunchResult, String> {
     let client = reqwest::Client::builder()
         .user_agent("rem-launcher/0.1.0")
@@ -259,9 +260,11 @@ pub async fn launch_game(
 
     let lib_jars = fetch_libraries(&client, &pkg, &lib_dir).await?;
     let assets_id = fetch_assets(&client, &pkg, &assets_dir).await?;
-
-    let game_dir = base.join("instances").join("__vanilla__").join(&version);
-    std::fs::create_dir_all(&game_dir).map_err(|e| e.to_string())?;
+    let game_dir = match &instance {
+        Some(name) if !name.is_empty() && !name.contains(['/', '\\', '.']) => base.join("instances").join(name),
+        _ => base.join("instances").join("__vanilla__").join(&version),
+    };
+    std::fs::create_dir_all(game_dir.join("mods")).map_err(|e| e.to_string())?;
 
     let mut cp: Vec<String> = lib_jars.iter().map(|p| p.to_string_lossy().into()).collect();
     // Demonstrate maven_path helper (kept for future loader resolution); no-op use.
