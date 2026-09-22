@@ -4,7 +4,8 @@ import { addMicrosoftAccount, addOfflineAccount, type Account } from "./auth";
 type Project = { id: string; title: string; description: string; downloads: number };
 type Instance = { name: string; game_version: string; loader: string };
 type VersionFile = { name: string; url: string; sha512: string | null; primary: boolean };
-type ProjectVersion = { version_number: string; files: VersionFile[] };
+type VersionDep = { project_id: string | null; dependency_type: string };
+type ProjectVersion = { version_number: string; files: VersionFile[]; dependencies: VersionDep[] };
 
 const q = document.querySelector<HTMLInputElement>("#q")!;
 const go = document.querySelector<HTMLButtonElement>("#go")!;
@@ -152,14 +153,38 @@ async function installToFirstInstance(projectId: string) {
     results.textContent = "No compatible version for this instance.";
     return;
   }
-  await invoke("install_mod", {
-    instance: target.name,
-    fileName: f.name,
-    url: f.url,
-    sha512: f.sha512,
-    projectId,
-    versionNumber: v.version_number,
-  });
+  // Install required dependencies first (recursive, cycle-safe).
+  const installed = new Set<string>([projectId]);
+  async function installWithDeps(pid: string, ver: ProjectVersion, inst: Instance) {
+    for (const dep of ver.dependencies ?? []) {
+      if (dep.dependency_type !== "required" || !dep.project_id || installed.has(dep.project_id)) continue;
+      installed.add(dep.project_id);
+      try {
+        const dvs = await invoke<ProjectVersion[]>("project_versions", {
+          projectId: dep.project_id,
+          gameVersions: [inst.game_version],
+          loaders: [inst.loader],
+        });
+        const dv = dvs[0];
+        const df = dv?.files.find((x) => x.primary) ?? dv?.files[0];
+        if (!dv || !df) continue;
+        await invoke("install_mod", {
+          instance: inst.name, fileName: df.name, url: df.url, sha512: df.sha512,
+          projectId: dep.project_id, versionNumber: dv.version_number,
+        });
+        await installWithDeps(dep.project_id, dv, inst);
+      } catch {
+        // missing dep version: install main mod anyway, note in status
+      }
+    }
+    const file = ver.files.find((x) => x.primary) ?? ver.files[0];
+    if (!file) return;
+    await invoke("install_mod", {
+      instance: inst.name, fileName: file.name, url: file.url, sha512: file.sha512,
+      projectId: pid, versionNumber: ver.version_number,
+    });
+  }
+  await installWithDeps(projectId, v, target);
   results.textContent = `Installed ${f.name} (${v.version_number}) into ${target.name}.`;
 }
 

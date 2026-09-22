@@ -45,6 +45,12 @@ pub struct VersionFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VersionDependency {
+    pub project_id: Option<String>,
+    pub dependency_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectVersion {
     pub id: String,
     pub project_id: String,
@@ -53,4 +59,6 @@ pub struct ProjectVersion {
     pub game_versions: Vec<String>,
     pub loaders: Vec<String>,
     pub files: Vec<VersionFile>,
+    #[serde(default)]
+    pub dependencies: Vec<VersionDependency>,
 }

@@ -99,6 +99,15 @@ struct FullVersion {
     game_versions: Vec<String>,
     loaders: Vec<String>,
     files: Vec<FullFile>,
+    #[serde(default)]
+    dependencies: Vec<FullDep>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FullDep {
+    #[serde(default)]
+    project_id: Option<String>,
+    dependency_type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -246,6 +255,11 @@ impl ContentProvider for ModrinthProvider {
                         sha512: f.hashes.get("sha512").cloned(),
                         primary: f.primary,
                     })
+                    .collect(),
+                dependencies: v
+                    .dependencies
+                    .into_iter()
+                    .map(|d| VersionDependency { project_id: d.project_id, dependency_type: d.dependency_type })
                     .collect(),
             })
             .collect())
