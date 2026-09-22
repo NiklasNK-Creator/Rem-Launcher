@@ -16,6 +16,12 @@ pub struct InstalledMod {
     pub project_id: String,
     pub version_number: String,
     pub file_name: String,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub sha512: Option<String>,
+    #[serde(default)]
+    pub content_type: Option<String>,
 }
 
 fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -139,7 +145,7 @@ pub async fn install_mod(
     let dest = data_root(&app)?.join(&instance).join(subdir).join(&file_name);
     let bytes = reqwest::get(&url).await.map_err(|e| e.to_string())?
         .bytes().await.map_err(|e| e.to_string())?;
-    if let Some(expect) = sha512 {
+    if let Some(expect) = sha512.as_deref() {
         use sha2::Digest;
         let mut h = sha2::Sha512::new();
         h.update(&bytes);
@@ -152,7 +158,14 @@ pub async fn install_mod(
     if let (Some(pid), Some(ver)) = (project_id, version_number) {
         let mut locked = load_locked(&app, &instance);
         locked.retain(|m| m.file_name != file_name && m.project_id != pid);
-        locked.push(InstalledMod { project_id: pid, version_number: ver, file_name: file_name.clone() });
+        locked.push(InstalledMod {
+            project_id: pid,
+            version_number: ver,
+            file_name: file_name.clone(),
+            url: Some(url),
+            sha512,
+            content_type,
+        });
         save_locked(&app, &instance, &locked)?;
     }
     Ok(dest.to_string_lossy().into())

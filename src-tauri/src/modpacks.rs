@@ -213,11 +213,30 @@ pub fn export_mrpack(app: AppHandle, instance: String, out_path: String) -> Resu
         "dependencies": deps,
         "files": locked.iter().filter_map(|m| {
             let fname = m.get("file_name")?.as_str()?;
+            let subdir = match m.get("content_type").and_then(|v| v.as_str()) {
+                Some("resourcepack") => "resourcepacks",
+                Some("shader") => "shaderpacks",
+                Some("datapack") => "datapacks",
+                _ => "mods",
+            };
+            let mut hashes = serde_json::Map::new();
+            if let Some(h) = m.get("sha512").and_then(|v| v.as_str()) {
+                hashes.insert("sha512".into(), serde_json::Value::String(h.into()));
+            }
+            // sha1 computed live so exports stay valid without stored sha1.
+            if let Ok(bytes) = std::fs::read(inst_dir.join(subdir).join(fname)) {
+                use sha1::Digest;
+                let mut h = sha1::Sha1::new();
+                h.update(&bytes);
+                let hex: String = h.finalize().iter().map(|b| format!("{b:02x}")).collect();
+                hashes.insert("sha1".into(), serde_json::Value::String(hex));
+            }
+            let downloads: Vec<String> = m.get("url").and_then(|v| v.as_str()).map(|u| vec![u.to_string()]).unwrap_or_default();
             Some(serde_json::json!({
-                "path": format!("mods/{fname}"),
-                "hashes": {},
-                "downloads": [],
-                "fileSize": std::fs::metadata(inst_dir.join("mods").join(fname)).map(|md| md.len()).unwrap_or(0),
+                "path": format!("{subdir}/{fname}"),
+                "hashes": hashes,
+                "downloads": downloads,
+                "fileSize": std::fs::metadata(inst_dir.join(subdir).join(fname)).map(|md| md.len()).unwrap_or(0),
             }))
         }).collect::<Vec<_>>(),
     });
