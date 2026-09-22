@@ -59,9 +59,11 @@ struct Library {
 #[derive(Debug, Deserialize)]
 struct LibDownloads {
     artifact: Option<LibArtifact>,
+    #[serde(default)]
+    classifiers: std::collections::HashMap<String, LibArtifact>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct LibArtifact {
     path: String,
     sha1: String,
@@ -121,18 +123,31 @@ fn maven_path(name: &str) -> Option<String> {
 }
 
 /// Download all allowed libraries (sha1-verified) into versions/<v>/libraries.
+/// Extracts OS natives (classifiers) into versions/<v>/natives, with zip-slip
+/// protection. Returns (classpath jars, natives dir).
 async fn fetch_libraries(
     client: &reqwest::Client,
     pkg: &Pkg,
     lib_dir: &PathBuf,
+    natives_dir: &PathBuf,
 ) -> Result<Vec<PathBuf>, String> {
     let mut jars = vec![];
     for lib in &pkg.libraries {
         if !rule_allows(&lib.rules) {
             continue;
         }
-        // Skip native-only classifiers (no artifact) — natives handled by loaders later.
         let Some(dl) = &lib.downloads else { continue };
+        // Natives: download classifier jar for this OS and extract it.
+        if let Some(natives) = &lib.natives {
+            if let Some(key) = natives.get(os_name()) {
+                // Classifier key may contain ${arch} (32/64).
+                let arch = if cfg!(target_arch = "x86_64") { "64" } else { "32" };
+                let classifier = key.replace("${arch}", arch);
+                if let Some(art) = dl.classifiers.get(&classifier) {
+                    extract_natives(client, art, natives_dir).await?;
+                }
+            }
+        }
         let Some(art) = &dl.artifact else { continue };
         let dest = lib_dir.join(&art.path);
         if dest.exists() {
@@ -149,6 +164,32 @@ async fn fetch_libraries(
         jars.push(dest);
     }
     Ok(jars)
+}
+
+/// Download a natives classifier jar (verified) and extract safe entries.
+async fn extract_natives(
+    client: &reqwest::Client,
+    art: &LibArtifact,
+    natives_dir: &PathBuf,
+) -> Result<(), String> {
+    std::fs::create_dir_all(natives_dir).map_err(|e| e.to_string())?;
+    let bytes = download_verified(client, &art.url, &art.sha1)
+        .await
+        .map_err(|e| e.to_string())?;
+    let cursor = std::io::Cursor::new(bytes);
+    let mut zip = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().to_string();
+        // Zip-slip + junk protection: single-component names only, skip META-INF.
+        if name.contains(['/', '\\']) || name.starts_with('.') || name.starts_with("META-INF") {
+            continue;
+        }
+        let dest = natives_dir.join(&name);
+        let mut out = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -339,7 +380,8 @@ pub async fn launch_game(
         std::fs::write(&jar, bytes).map_err(|e| e.to_string())?;
     }
 
-    let lib_jars = fetch_libraries(&client, &pkg, &lib_dir).await?;
+    let natives_dir = vdir.join("natives");
+    let lib_jars = fetch_libraries(&client, &pkg, &lib_dir, &natives_dir).await?;
     let assets_id = fetch_assets(&client, &pkg, &assets_dir).await?;
     let game_dir = match &instance {
         Some(name) if !name.is_empty() && !name.contains(['/', '\\', '.']) => base.join("instances").join(name),
@@ -363,6 +405,7 @@ pub async fn launch_game(
     let token = access_token.unwrap_or_else(|| "0".into());
     let user_type = if account_id.starts_with("microsoft:") { "msa" } else { "legacy" };
     let args = [
+        format!("-Djava.library.path={}", natives_dir.to_string_lossy()),
         "-cp".to_string(),
         classpath,
         main_class,
