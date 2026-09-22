@@ -504,6 +504,25 @@ fn map_err(e: InstallError) -> String {
     e.to_string()
 }
 
+/// List available Mojang versions for UI pickers.
+#[tauri::command]
+pub async fn list_versions(kind: Option<String>) -> Result<Vec<String>, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("rem-launcher/0.1.0")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let entries = fetch_version_manifest(&client).await.map_err(map_err)?;
+    Ok(entries
+        .into_iter()
+        .filter(|e| match kind.as_deref() {
+            Some("release") => e.r#type == "release",
+            Some("snapshot") => e.r#type == "snapshot",
+            _ => true,
+        })
+        .map(|e| e.id)
+        .collect())
+}
+
 /// Read the last N lines of an instance's game log (for Play UI diagnostics).
 #[tauri::command]
 pub fn read_log_tail(app: AppHandle, instance: Option<String>, lines: Option<usize>) -> Result<String, String> {

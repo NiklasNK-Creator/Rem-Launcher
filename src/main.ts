@@ -16,7 +16,10 @@ const addOfflineBtn = document.querySelector<HTMLButtonElement>("#add-offline")!
 const addMsBtn = document.querySelector<HTMLButtonElement>("#add-ms")!;
 const instEl = document.querySelector<HTMLDivElement>("#instances")!;
 const instName = document.querySelector<HTMLInputElement>("#inst-name")!;
-const instVersion = document.querySelector<HTMLInputElement>("#inst-version")!;
+const instVersion = document.querySelector<HTMLSelectElement>("#inst-version")!;
+invoke<string[]>("list_versions", { kind: "release" }).then((vs) => {
+  instVersion.innerHTML = vs.slice(0, 30).map((v) => `<option value="${v}">${v}</option>`).join("");
+});
 const instLoader = document.querySelector<HTMLInputElement>("#inst-loader")!;
 const createInst = document.querySelector<HTMLButtonElement>("#create-inst")!;
 
