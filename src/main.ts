@@ -270,3 +270,16 @@ playBtn.onclick = async () => {
     playStatus.textContent = `Launch failed: ${e}`;
   }
 };
+
+const logBtn = document.querySelector<HTMLButtonElement>("#log-btn")!;
+const gameLog = document.querySelector<HTMLPreElement>("#game-log")!;
+logBtn.onclick = async () => {
+  try {
+    gameLog.textContent = await invoke<string>("read_log_tail", {
+      instance: playInstance.value || null,
+      lines: 40,
+    });
+  } catch (e) {
+    gameLog.textContent = `No log: ${e}`;
+  }
+};

@@ -429,21 +429,46 @@ pub async fn launch_game(
         "release".into(),
     ];
 
-    let java = "java";
-    let mut child = std::process::Command::new(java)
+    use std::process::Stdio;
+    let log_path = game_dir.join("rem-launcher.log");
+    let log_file = std::fs::File::create(&log_path).map_err(|e| e.to_string())?;
+    let log_err = log_file.try_clone().map_err(|e| e.to_string())?;
+    let mut child = std::process::Command::new("java")
         .args(&args)
         .current_dir(&game_dir)
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(log_err))
         .spawn()
         .map_err(|e| format!("failed to spawn java (is it installed?): {e}"))?;
     let pid = child.id();
+    let watching = log_path.to_string_lossy().into_owned();
     std::thread::spawn(move || {
-        let _ = child.wait();
+        let status = child.wait();
+        let tail = std::fs::read_to_string(&watching).unwrap_or_default();
+        let last: Vec<&str> = tail.lines().rev().take(20).collect();
+        eprintln!("game exited: {status:?}; log tail: {}", last.into_iter().rev().collect::<Vec<_>>().join("\n"));
     });
     Ok(LaunchResult { pid })
 }
 
 fn map_err(e: InstallError) -> String {
     e.to_string()
+}
+
+/// Read the last N lines of an instance's game log (for Play UI diagnostics).
+#[tauri::command]
+pub fn read_log_tail(app: AppHandle, instance: Option<String>, lines: Option<usize>) -> Result<String, String> {
+    use tauri::Manager;
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let game_dir = match &instance {
+        Some(name) if !name.is_empty() && !name.contains(['/', '\\', '.']) => base.join("instances").join(name),
+        _ => return Err("pick an instance first".into()),
+    };
+    let raw = std::fs::read_to_string(game_dir.join("rem-launcher.log")).unwrap_or_default();
+    let n = lines.unwrap_or(40).clamp(1, 500);
+    let all: Vec<&str> = raw.lines().collect();
+    let start = all.len().saturating_sub(n);
+    Ok(all[start..].join("\n"))
 }
 
 #[tauri::command]
