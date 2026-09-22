@@ -393,15 +393,14 @@ const playAccount = document.querySelector<HTMLSelectElement>("#play-account")!;
 const playInstance = document.querySelector<HTMLSelectElement>("#play-instance")!;
 const playBtn = document.querySelector<HTMLButtonElement>("#play-btn")!;
 const playStatus = document.querySelector<HTMLDivElement>("#play-status")!;
+const launchBar = document.querySelector<HTMLProgressElement>("#launch-progress")!;
 
-async function refreshPlaySelectors() {
-  const [accounts, instances] = await Promise.all([
-    invoke<Account[]>("list_accounts"),
-    invoke<Instance[]>("list_instances"),
-  ]);
-  playAccount.innerHTML = accounts.map((a) => `<option value="${a.id}">${a.mc_name} [${a.kind}]</option>`).join("");
-  playInstance.innerHTML = instances.map((i) => `<option value="${i.name}">${i.name} — ${i.game_version} (${i.loader})</option>`).join("");
-}
+import { listen } from "@tauri-apps/api/event";
+listen<{ phase: string; done: number }>("launch-progress", (e) => {
+  launchBar.hidden = false;
+  launchBar.value = e.payload.done;
+  playStatus.textContent = `Launching… ${e.payload.phase} (${e.payload.done}%)`;
+});
 
 playBtn.onclick = async () => {
   const accountId = playAccount.value;
@@ -428,8 +427,10 @@ playBtn.onclick = async () => {
       loader: inst.loader,
     });
     playStatus.textContent = `Game started (pid ${r.pid}).`;
+    launchBar.hidden = true;
   } catch (e) {
     playStatus.textContent = `Launch failed: ${e}`;
+    launchBar.hidden = true;
   }
 };
 

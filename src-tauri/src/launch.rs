@@ -377,6 +377,11 @@ pub async fn launch_game(
     instance: Option<String>,
     loader: Option<String>,
 ) -> Result<LaunchResult, String> {
+    use tauri::Emitter;
+    let step = |phase: &str, done: u32| {
+        let _ = app.emit("launch-progress", serde_json::json!({ "phase": phase, "done": done }));
+    };
+    step("manifest", 5);
     let client = reqwest::Client::builder()
         .user_agent("rem-launcher/0.1.0")
         .build()
@@ -423,10 +428,12 @@ pub async fn launch_game(
             .map_err(map_err)?;
         std::fs::write(&jar, bytes).map_err(|e| e.to_string())?;
     }
-
+    step("client", 15);
     let natives_dir = vdir.join("natives");
     let lib_jars = fetch_libraries(&client, &pkg, &lib_dir, &natives_dir).await?;
+    step("libraries", 55);
     let assets_id = fetch_assets(&client, &pkg, &assets_dir).await?;
+    step("assets", 85);
     let game_dir = match &instance {
         Some(name) if !name.is_empty() && !name.contains(['/', '\\', '.']) => base.join("instances").join(name),
         _ => base.join("instances").join("__vanilla__").join(&version),
@@ -532,6 +539,7 @@ pub async fn launch_game(
         let last: Vec<&str> = tail.lines().rev().take(20).collect();
         eprintln!("game exited: {status:?}; log tail: {}", last.into_iter().rev().collect::<Vec<_>>().join("\n"));
     });
+    step("launched", 100);
     Ok(LaunchResult { pid })
 }
 
