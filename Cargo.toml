@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/launcher-core", "src-tauri"]
+members = ["crates/launcher-core", "crates/launcher-install", "src-tauri"]
 resolver = "2"
