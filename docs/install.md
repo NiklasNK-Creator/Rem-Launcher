@@ -10,4 +10,8 @@
   JVM heap is configurable per instance (`max_memory_mb`, default 4096MB)
   with custom JVM arguments support.
   Play UI: account + instance selectors, status line with pid/errors,
-  per-instance Configure (RAM) and Folder (Explorer/Finder) actions.
+  per-instance Configure (RAM), Folder (Explorer/Finder), Backup, and Restore.
+- `backups.rs`: world saves backup/restore as ZIP under instance `backups/`,
+  with filename validation and zip-slip protection. Backup controls are
+  exposed on each instance card; restore lists the newest backup and asks
+  for confirmation by filename.

@@ -124,7 +124,27 @@ function renderInstances(list: Instance[]) {
       renderInstances(await invoke<Instance[]>("delete_instance", { name: i.name }));
       refreshPlaySelectors();
     };
-    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn, cloneBtn, delInst);
+    const backupBtn = document.createElement("button");
+    backupBtn.textContent = "Backup";
+    backupBtn.onclick = async () => {
+      try {
+        const b = await invoke<{ file_name: string; size_bytes: number }>("create_backup", { instance: i.name, backupName: null });
+        label.textContent = `${i.name}: backup ${b.file_name} (${b.size_bytes} bytes)`;
+      } catch (e) { label.textContent = `Backup failed: ${e}`; }
+    };
+    const restoreBtn = document.createElement("button");
+    restoreBtn.textContent = "Restore";
+    restoreBtn.onclick = async () => {
+      try {
+        const backups = await invoke<{ file_name: string; created_at: string }[]>("list_backups", { instance: i.name });
+        if (backups.length === 0) throw new Error("no backups");
+        const chosen = prompt("Backup filename to restore:", backups[0].file_name);
+        if (!chosen) return;
+        await invoke("restore_backup", { instance: i.name, fileName: chosen });
+        label.textContent = `${i.name}: restored ${chosen}`;
+      } catch (e) { label.textContent = `Restore failed: ${e}`; }
+    };
+    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn, cloneBtn, backupBtn, restoreBtn, delInst);
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
       const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
