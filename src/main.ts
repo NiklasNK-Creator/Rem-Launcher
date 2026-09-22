@@ -186,6 +186,7 @@ playBtn.onclick = async () => {
       accountName: acc.mc_name,
       accountUuid: acc.uuid,
       instance: inst.name,
+      loader: inst.loader,
     });
     playStatus.textContent = `Game started (pid ${r.pid}).`;
   } catch (e) {

@@ -152,6 +152,86 @@ async fn fetch_libraries(
 }
 
 #[derive(Debug, Deserialize)]
+struct FabricLoaderEntry {
+    loader: FabricMaven,
+    intermediary: FabricMaven,
+    #[serde(rename = "launcherMeta")]
+    launcher_meta: FabricLauncherMeta,
+}
+
+#[derive(Debug, Deserialize)]
+struct FabricMaven {
+    maven: String,
+    version: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct FabricLauncherMeta {
+    #[serde(rename = "mainClass")]
+    main_class: serde_json::Value,
+    libraries: FabricLibraries,
+}
+
+#[derive(Debug, Deserialize)]
+struct FabricLibraries {
+    common: Vec<FabricLib>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FabricLib {
+    name: String,
+    url: String,
+}
+
+/// Resolve latest stable Fabric loader for a game version.
+/// Returns (loader_version, main_class, extra maven coords).
+async fn resolve_fabric(
+    client: &reqwest::Client,
+    game_version: &str,
+) -> Result<(String, String, Vec<(String, String)>), String> {
+    let url = format!("https://meta.fabricmc.net/v2/versions/loader/{game_version}");
+    let entries: Vec<FabricLoaderEntry> = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    let stable = entries.iter().find(|e| e.loader.version.contains('.')).ok_or("no fabric loader found")?;
+    let main = match &stable.launcher_meta.main_class {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Object(m) => m.get("client").and_then(|v| v.as_str()).unwrap_or("net.fabricmc.loader.impl.launch.knot.KnotClient").to_string(),
+        _ => "net.fabricmc.loader.impl.launch.knot.KnotClient".to_string(),
+    };
+    let mut extra = vec![(stable.loader.maven.clone(), "https://maven.fabricmc.net/".into()), (stable.intermediary.maven.clone(), "https://maven.fabricmc.net/".into())];
+    for lib in &stable.launcher_meta.libraries.common {
+        extra.push((lib.name.clone(), lib.url.clone()));
+    }
+    Ok((stable.loader.version.clone(), main, extra))
+}
+
+/// Download a maven coord from a repo base into lib_dir, return jar path.
+async fn fetch_maven(
+    client: &reqwest::Client,
+    lib_dir: &PathBuf,
+    coord: &str,
+    repo: &str,
+) -> Result<PathBuf, String> {
+    let rel = maven_path(coord).ok_or_else(|| format!("bad maven coord {coord}"))?;
+    let dest = lib_dir.join(&rel);
+    if dest.exists() {
+        return Ok(dest);
+    }
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let url = format!("{}{}", repo.trim_end_matches('/'), format!("/{rel}"));
+    let bytes = client.get(url).send().await.map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+    std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    Ok(dest)
+}
+#[derive(Debug, Deserialize)]
 struct AssetIndex {
     objects: std::collections::HashMap<String, AssetObj>,
 }
@@ -222,6 +302,7 @@ pub async fn launch_game(
     account_uuid: String,
     access_token: Option<String>,
     instance: Option<String>,
+    loader: Option<String>,
 ) -> Result<LaunchResult, String> {
     let client = reqwest::Client::builder()
         .user_agent("rem-launcher/0.1.0")
@@ -265,10 +346,16 @@ pub async fn launch_game(
         _ => base.join("instances").join("__vanilla__").join(&version),
     };
     std::fs::create_dir_all(game_dir.join("mods")).map_err(|e| e.to_string())?;
-
     let mut cp: Vec<String> = lib_jars.iter().map(|p| p.to_string_lossy().into()).collect();
-    // Demonstrate maven_path helper (kept for future loader resolution); no-op use.
-    let _ = maven_path("com.example:demo:1.0");
+    let mut main_class = pkg.main_class.clone();
+    if loader.as_deref() == Some("fabric") {
+        let (_lv, main, extra) = resolve_fabric(&client, &version).await?;
+        main_class = main;
+        for (coord, repo) in extra {
+            let p = fetch_maven(&client, &lib_dir, &coord, &repo).await?;
+            cp.push(p.to_string_lossy().into());
+        }
+    }
     cp.push(jar.to_string_lossy().into());
     let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
     let classpath = cp.join(sep);
@@ -278,7 +365,7 @@ pub async fn launch_game(
     let args = [
         "-cp".to_string(),
         classpath,
-        pkg.main_class.clone(),
+        main_class,
         "--username".into(),
         account_name,
         "--version".into(),
