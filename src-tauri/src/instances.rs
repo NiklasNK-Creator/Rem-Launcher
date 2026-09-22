@@ -83,6 +83,57 @@ pub fn delete_instance(app: AppHandle, name: String) -> Result<Vec<Instance>, St
     Ok(all)
 }
 
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
+}
+
+/// Clone/duplicate an existing instance with all its installed mods, configs, and settings.
+#[tauri::command]
+pub fn clone_instance(app: AppHandle, source_name: String, new_name: String) -> Result<Vec<Instance>, String> {
+    if !valid_instance_name(&source_name) || !valid_instance_name(&new_name) {
+        return Err("invalid instance name".into());
+    }
+    let src_trim = source_name.trim();
+    let new_trim = new_name.trim();
+    if src_trim == new_trim {
+        return Err("new name must be different from source name".into());
+    }
+    let mut all = load_all(&app);
+    let src = all.iter().find(|i| i.name == src_trim).cloned().ok_or("source instance does not exist")?;
+    if all.iter().any(|i| i.name == new_trim) {
+        return Err("instance with this name already exists".into());
+    }
+    let src_dir = data_root(&app)?.join(src_trim);
+    let new_dir = data_root(&app)?.join(new_trim);
+    if src_dir.exists() {
+        copy_dir_all(&src_dir, &new_dir).map_err(|e| format!("failed to copy instance files: {e}"))?;
+    } else {
+        std::fs::create_dir_all(&new_dir).map_err(|e| e.to_string())?;
+    }
+    let cloned = Instance {
+        name: new_trim.into(),
+        game_version: src.game_version,
+        loader: src.loader,
+        jvm_args: src.jvm_args,
+        max_memory_mb: src.max_memory_mb,
+    };
+    all.push(cloned);
+    save_all(&app, &all)?;
+    Ok(all)
+}
+
 fn lockfile(app: &AppHandle, instance: &str) -> Result<PathBuf, String> {
     Ok(data_root(app)?.join(instance).join("installed.json"))
 }

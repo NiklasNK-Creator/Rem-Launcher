@@ -104,7 +104,19 @@ function renderInstances(list: Instance[]) {
       try { await invoke("open_instance_folder", { name: i.name }); }
       catch (e) { label.textContent = `Folder failed: ${e}`; }
     };
-    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn);
+    const cloneBtn = document.createElement("button");
+    cloneBtn.textContent = "Clone";
+    cloneBtn.onclick = async () => {
+      const newName = prompt(`Clone ${i.name} as:`, `${i.name}-copy`);
+      if (!newName || !newName.trim()) return;
+      try {
+        const updated = await invoke<Instance[]>("clone_instance", { sourceName: i.name, newName: newName.trim() });
+        renderInstances(updated);
+        refreshPlaySelectors();
+      } catch (e) {
+        label.textContent = `Clone failed: ${e}`;
+      }
+    };
     const delInst = document.createElement("button");
     delInst.textContent = "Delete";
     delInst.onclick = async () => {
@@ -112,7 +124,7 @@ function renderInstances(list: Instance[]) {
       renderInstances(await invoke<Instance[]>("delete_instance", { name: i.name }));
       refreshPlaySelectors();
     };
-    div.append(delInst);
+    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn, cloneBtn, delInst);
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
       const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
