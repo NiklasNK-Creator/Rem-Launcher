@@ -130,14 +130,6 @@ fn content_type_of(s: &str) -> ContentType {
     }
 }
 
-fn facet_str(v: &[String]) -> Option<String> {
-    if v.is_empty() {
-        return None;
-    }
-    let inner: Vec<String> = v.iter().map(|s| format!("\"{s}\"")).collect();
-    Some(format!("[{}]", inner.join(",")))
-}
-
 #[async_trait]
 impl ContentProvider for ModrinthProvider {
     fn id(&self) -> ProviderId {
@@ -159,11 +151,10 @@ impl ContentProvider for ModrinthProvider {
                 facets.push(format!("[\"project_type:{pt}\"]"));
             }
         }
-        if let Some(f) = facet_str(&query.game_versions) {
+        if !query.game_versions.is_empty() {
             let vs: Vec<String> =
                 query.game_versions.iter().map(|v| format!("\"versions:{v}\"")).collect();
             facets.push(format!("[{}]", vs.join(",")));
-            let _ = f;
         }
         if !query.loaders.is_empty() {
             let ls: Vec<String> =

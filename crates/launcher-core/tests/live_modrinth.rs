@@ -21,3 +21,22 @@ async fn live_search_sodium() {
     assert!(!vers.is_empty());
     assert!(!vers[0].files.is_empty());
 }
+
+#[tokio::test]
+#[ignore]
+async fn live_search_filtered_loader() {
+    let p = ModrinthProvider::new();
+    let q = SearchQuery {
+        text: "sodium".into(),
+        game_versions: vec!["1.20.1".into()],
+        loaders: vec!["fabric".into()],
+        limit: 5,
+        ..Default::default()
+    };
+    let vers = p
+        .versions("AANobbMI", &q.game_versions, &q.loaders)
+        .await
+        .expect("filtered versions work");
+    assert!(!vers.is_empty(), "sodium should have 1.20.1 fabric versions");
+    assert!(vers.iter().all(|v| v.game_versions.contains(&"1.20.1".to_string())));
+}
