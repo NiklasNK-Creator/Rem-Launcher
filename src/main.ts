@@ -333,6 +333,23 @@ createInst.onclick = async () => {
   }
 };
 
+const mrpackPath = document.querySelector<HTMLInputElement>("#mrpack-path")!;
+const importMrpack = document.querySelector<HTMLButtonElement>("#import-mrpack")!;
+importMrpack.onclick = async () => {
+  const p = mrpackPath.value.trim();
+  if (!p) return;
+  try {
+    const r = await invoke<{ instance: string; files: number }>("import_mrpack", { path: p });
+    const list = await invoke<Instance[]>("list_instances");
+    renderInstances(list);
+    refreshPlaySelectors();
+    instEl.textContent = `Imported ${r.instance} (${r.files} files).`;
+    renderInstances(list);
+  } catch (e) {
+    instEl.textContent = `Import failed: ${e}`;
+  }
+};
+
 invoke<Account[]>("list_accounts").then((a) => {
   renderAccounts(a);
   refreshPlaySelectors();
