@@ -241,13 +241,19 @@ struct FabricLib {
     url: String,
 }
 
-/// Resolve latest stable Fabric loader for a game version.
+/// Resolve latest Fabric OR Quilt loader for a game version.
+/// Quilt's meta v3 mirrors Fabric's shape closely enough to share parsing:
+/// same launcherMeta.libraries.common + intermediary layout.
 /// Returns (loader_version, main_class, extra maven coords).
-async fn resolve_fabric(
+async fn resolve_loader(
     client: &reqwest::Client,
     game_version: &str,
+    loader: &str,
 ) -> Result<(String, String, Vec<(String, String)>), String> {
-    let url = format!("https://meta.fabricmc.net/v2/versions/loader/{game_version}");
+    let (url, repo) = match loader {
+        "quilt" => (format!("https://meta.quiltmc.org/v3/versions/loader/{game_version}"), "https://maven.quiltmc.org/repository/release/"),
+        _ => (format!("https://meta.fabricmc.net/v2/versions/loader/{game_version}"), "https://maven.fabricmc.net/"),
+    };
     let entries: Vec<FabricLoaderEntry> = client
         .get(url)
         .send()
@@ -256,13 +262,13 @@ async fn resolve_fabric(
         .json()
         .await
         .map_err(|e| e.to_string())?;
-    let stable = entries.iter().find(|e| e.loader.version.contains('.')).ok_or("no fabric loader found")?;
+    let stable = entries.iter().find(|e| e.loader.version.contains('.')).ok_or("no loader found")?;
     let main = match &stable.launcher_meta.main_class {
         serde_json::Value::String(s) => s.clone(),
         serde_json::Value::Object(m) => m.get("client").and_then(|v| v.as_str()).unwrap_or("net.fabricmc.loader.impl.launch.knot.KnotClient").to_string(),
         _ => "net.fabricmc.loader.impl.launch.knot.KnotClient".to_string(),
     };
-    let mut extra = vec![(stable.loader.maven.clone(), "https://maven.fabricmc.net/".into()), (stable.intermediary.maven.clone(), "https://maven.fabricmc.net/".into())];
+    let mut extra = vec![(stable.loader.maven.clone(), repo.into()), (stable.intermediary.maven.clone(), repo.into())];
     for lib in &stable.launcher_meta.libraries.common {
         extra.push((lib.name.clone(), lib.url.clone()));
     }
@@ -407,12 +413,20 @@ pub async fn launch_game(
     std::fs::create_dir_all(game_dir.join("mods")).map_err(|e| e.to_string())?;
     let mut cp: Vec<String> = lib_jars.iter().map(|p| p.to_string_lossy().into()).collect();
     let mut main_class = pkg.main_class.clone();
-    if loader.as_deref() == Some("fabric") {
-        let (_lv, main, extra) = resolve_fabric(&client, &version).await?;
+    if matches!(loader.as_deref(), Some("fabric") | Some("quilt")) {
+        let kind = loader.as_deref().unwrap_or("fabric");
+        let (_lv, main, extra) = resolve_loader(&client, &version, kind).await?;
         main_class = main;
         for (coord, repo) in extra {
-            let p = fetch_maven(&client, &lib_dir, &coord, &repo).await?;
-            cp.push(p.to_string_lossy().into());
+            // Quilt reuses Fabric's intermediary; fall back to Fabric maven if missing.
+            match fetch_maven(&client, &lib_dir, &coord, &repo).await {
+                Ok(p) => cp.push(p.to_string_lossy().into()),
+                Err(_) if repo.contains("quiltmc") => {
+                    let p = fetch_maven(&client, &lib_dir, &coord, "https://maven.fabricmc.net/").await?;
+                    cp.push(p.to_string_lossy().into());
+                }
+                Err(e) => return Err(e),
+            }
         }
     }
     cp.push(jar.to_string_lossy().into());
