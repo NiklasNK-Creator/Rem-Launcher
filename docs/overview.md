@@ -1,4 +1,4 @@
-# Nova Launcher (working title) — Project Overview
+# Rem Launcher — Project Overview
 
 Local-first, modded-Minecraft launcher. Rust + Tauri.
 

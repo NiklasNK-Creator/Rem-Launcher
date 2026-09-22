@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rem Launcher</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #7dd3fc; color: #0c4a6e; margin: 2rem; }
+      #results { display: grid; gap: 0.75rem; margin-top: 1rem; }
+      .card { background: #fff; border-radius: 0.5rem; padding: 0.75rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>💙 Rem Launcher</h1>
+    <input id="q" placeholder="Search Modrinth mods…" value="sodium" />
+    <button id="go">Search</button>
+    <div id="results"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

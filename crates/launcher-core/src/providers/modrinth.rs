@@ -4,7 +4,7 @@ use crate::providers::{ContentProvider, ProviderError, ProviderId, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 pub const BASE_URL: &str = "https://api.modrinth.com/v2";
-pub const USER_AGENT: &str = "nova-launcher/0.1.0 (local-first mc launcher)";
+pub const USER_AGENT: &str = "rem-launcher/0.1.0 (local-first mc launcher)";
 
 pub struct ModrinthProvider {
     client: reqwest::Client,

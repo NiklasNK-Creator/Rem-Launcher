@@ -17,7 +17,7 @@
 6. Modpack import/export (Modrinth `.mrpack` first, CurseForge second).
 7. Offline mode, repair/verify, update channels.
 
-## Needs user input (asked separately)
-- CurseForge API key strategy (user supplies key vs. apply for official key).
-- Microsoft Entra client ID for auth (or bring-your-own Azure app).
-- Product name.
+## Decisions (user, 2026-09-22)
+- Name: **Rem Launcher** (blue theme, Rem-inspired).
+- CurseForge: deferred (Modrinth-only for now).
+- Auth: register our own Entra public-client ID (pending Azure-portal step).

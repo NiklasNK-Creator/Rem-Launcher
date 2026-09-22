@@ -2,7 +2,7 @@
 
 - Base: `https://api.modrinth.com/v2`. Open read access, JSON.
 - Required header: descriptive `User-Agent`
-  (e.g. `nova-launcher/0.1 (+https://github.com/...)`).
+  (e.g. `rem-launcher/0.1 (+https://github.com/...)`).
 - Rate limit: ~300 requests/min. Respect `Retry-After`.
 - Key endpoints:
   - `GET /v2/search?q=&facets=&limit=&offset=` — project search.
