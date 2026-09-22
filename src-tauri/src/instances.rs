@@ -43,6 +43,23 @@ fn save_all(app: &AppHandle, list: &[Instance]) -> Result<(), String> {
     std::fs::write(store_path(app)?, raw).map_err(|e| e.to_string())
 }
 
+/// Delete an instance: remove store entry + its on-disk dir.
+#[tauri::command]
+pub fn delete_instance(app: AppHandle, name: String) -> Result<Vec<Instance>, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.contains(['/', '\\', '.', ':']) {
+        return Err("invalid instance name".into());
+    }
+    let mut all = load_all(&app);
+    all.retain(|i| i.name != trimmed);
+    save_all(&app, &all)?;
+    let dir = data_root(&app)?.join(trimmed);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    Ok(all)
+}
+
 fn lockfile(app: &AppHandle, instance: &str) -> Result<PathBuf, String> {
     Ok(data_root(app)?.join(instance).join("installed.json"))
 }

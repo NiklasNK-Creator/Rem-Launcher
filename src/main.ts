@@ -64,6 +64,14 @@ function renderInstances(list: Instance[]) {
       label.textContent = `${i.name}: repaired — ${r.ok_tracked} ok, ${r.untracked_files.length} untracked`;
     };
     div.append(label, modsBtn, verifyBtn, repairBtn);
+    const delInst = document.createElement("button");
+    delInst.textContent = "Delete";
+    delInst.onclick = async () => {
+      if (!confirm(`Delete instance ${i.name} and all its files?`)) return;
+      renderInstances(await invoke<Instance[]>("delete_instance", { name: i.name }));
+      refreshPlaySelectors();
+    };
+    div.append(delInst);
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
       const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
