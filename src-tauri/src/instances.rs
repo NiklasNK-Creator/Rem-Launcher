@@ -1,4 +1,4 @@
-//! Instance store + mod installation.
+//! Instance store + mod installation with lockfile.
 //! Read docs/architecture.md before changing this system.
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -9,6 +9,13 @@ pub struct Instance {
     pub name: String,
     pub game_version: String,
     pub loader: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledMod {
+    pub project_id: String,
+    pub version_number: String,
+    pub file_name: String,
 }
 
 fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -34,6 +41,24 @@ fn load_all(app: &AppHandle) -> Vec<Instance> {
 fn save_all(app: &AppHandle, list: &[Instance]) -> Result<(), String> {
     let raw = serde_json::to_string_pretty(list).map_err(|e| e.to_string())?;
     std::fs::write(store_path(app)?, raw).map_err(|e| e.to_string())
+}
+
+fn lockfile(app: &AppHandle, instance: &str) -> Result<PathBuf, String> {
+    Ok(data_root(app)?.join(instance).join("installed.json"))
+}
+
+fn load_locked(app: &AppHandle, instance: &str) -> Vec<InstalledMod> {
+    let path = match lockfile(app, instance) {
+        Ok(p) => p,
+        Err(_) => return vec![],
+    };
+    let raw = std::fs::read_to_string(path).unwrap_or_default();
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+fn save_locked(app: &AppHandle, instance: &str, mods: &[InstalledMod]) -> Result<(), String> {
+    let raw = serde_json::to_string_pretty(mods).map_err(|e| e.to_string())?;
+    std::fs::write(lockfile(app, instance)?, raw).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -66,6 +91,10 @@ pub fn create_instance(
     Ok(all)
 }
 
+fn valid_file_name(name: &str) -> bool {
+    !name.is_empty() && !name.starts_with('.') && !name.contains(['/', '\\'])
+}
+
 #[tauri::command]
 pub async fn install_mod(
     app: AppHandle,
@@ -73,9 +102,10 @@ pub async fn install_mod(
     file_name: String,
     url: String,
     sha512: Option<String>,
+    project_id: Option<String>,
+    version_number: Option<String>,
 ) -> Result<String, String> {
-    // Confine to <data>/instances/<instance>/mods/<file_name>, single component.
-    if file_name.contains(['/', '\\']) || file_name.starts_with('.') || file_name.is_empty() {
+    if !valid_file_name(&file_name) {
         return Err("invalid file name".into());
     }
     let all = load_all(&app);
@@ -95,6 +125,12 @@ pub async fn install_mod(
         }
     }
     std::fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    if let (Some(pid), Some(ver)) = (project_id, version_number) {
+        let mut locked = load_locked(&app, &instance);
+        locked.retain(|m| m.file_name != file_name && m.project_id != pid);
+        locked.push(InstalledMod { project_id: pid, version_number: ver, file_name: file_name.clone() });
+        save_locked(&app, &instance, &locked)?;
+    }
     Ok(dest.to_string_lossy().into())
 }
 
@@ -115,12 +151,20 @@ pub fn list_instance_mods(app: AppHandle, instance: String) -> Result<Vec<String
 
 #[tauri::command]
 pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result<Vec<String>, String> {
-    if file_name.contains(['/', '\\']) || file_name.starts_with('.') || file_name.is_empty() {
+    if !valid_file_name(&file_name) {
         return Err("invalid file name".into());
     }
     let target = data_root(&app)?.join(&instance).join("mods").join(&file_name);
     if target.exists() {
         std::fs::remove_file(&target).map_err(|e| e.to_string())?;
     }
+    let mut locked = load_locked(&app, &instance);
+    locked.retain(|m| m.file_name != file_name);
+    let _ = save_locked(&app, &instance, &locked);
     list_instance_mods(app, instance)
+}
+
+#[tauri::command]
+pub fn locked_mods(app: AppHandle, instance: String) -> Vec<InstalledMod> {
+    load_locked(&app, &instance)
 }

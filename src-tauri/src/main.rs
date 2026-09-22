@@ -54,7 +54,7 @@ fn main() {
     };
     tauri::Builder::default()
         .manage(state)
-        .invoke_handler(tauri::generate_handler![search_mods, project_versions, accounts::list_accounts, accounts::add_account, accounts::remove_account, launch::prepare_client, launch::detect_java, launch::launch_game, instances::list_instances, instances::create_instance, instances::install_mod, instances::list_instance_mods, instances::remove_mod])
+        .invoke_handler(tauri::generate_handler![search_mods, project_versions, accounts::list_accounts, accounts::add_account, accounts::remove_account, launch::prepare_client, launch::detect_java, launch::launch_game, instances::list_instances, instances::create_instance, instances::install_mod, instances::list_instance_mods, instances::remove_mod, instances::locked_mods])
         .run(tauri::generate_context!())
         .expect("failed to run Rem Launcher");
 }

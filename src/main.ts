@@ -50,11 +50,28 @@ function renderInstances(list: Instance[]) {
     const modList = document.createElement("div");
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
+      const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
+      const versions = new Map<string, { latest: string; installed: string }>();
+      for (const m of locked) {
+        try {
+          const vs = await invoke<{ version_number: string }[]>("project_versions", {
+            projectId: m.project_id,
+            gameVersions: [i.game_version],
+            loaders: [i.loader],
+          });
+          if (vs[0] && vs[0].version_number !== m.version_number) {
+            versions.set(m.file_name, { latest: vs[0].version_number, installed: m.version_number });
+          }
+        } catch {
+          // offline or untracked: no badge
+        }
+      }
       modList.innerHTML = "";
       for (const f of files) {
         const row = document.createElement("div");
         const name = document.createElement("span");
-        name.textContent = f;
+        const upd = versions.get(f);
+        name.textContent = upd ? `${f} — update: ${upd.installed} → ${upd.latest}` : f;
         const rm = document.createElement("button");
         rm.textContent = "Remove";
         rm.onclick = async () => {
@@ -97,6 +114,8 @@ async function installToFirstInstance(projectId: string) {
     fileName: f.name,
     url: f.url,
     sha512: f.sha512,
+    projectId,
+    versionNumber: v.version_number,
   });
   results.textContent = `Installed ${f.name} (${v.version_number}) into ${target.name}.`;
 }
