@@ -296,8 +296,9 @@ addMsBtn.onclick = async () => {
 
 go.onclick = async () => {
   results.textContent = "Searching…";
+  const ct = (document.querySelector<HTMLSelectElement>("#content-type")!).value;
   try {
-    const hits = await invoke<Project[]>("search_mods", { text: q.value, limit: 20 });
+    const hits = await invoke<Project[]>("search_mods", { text: q.value, limit: 20, contentType: ct });
     results.innerHTML = "";
     for (const h of hits) {
       const div = document.createElement("div");
@@ -307,7 +308,7 @@ go.onclick = async () => {
       const meta = document.createElement("span");
       meta.textContent = ` — ${h.downloads} downloads`;
       const btn = document.createElement("button");
-      btn.textContent = "Install";
+      btn.textContent = ct === "mod" ? "Install" : "Download";
       btn.onclick = () => installToFirstInstance(h.id);
       div.append(title, meta, btn);
       results.appendChild(div);

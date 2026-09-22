@@ -22,10 +22,20 @@ async fn search_mods(
     game_version: Option<String>,
     loader: Option<String>,
     limit: Option<u32>,
+    content_type: Option<String>,
 ) -> Result<Vec<launcher_core::models::Project>, String> {
+    use launcher_core::models::ContentType;
+    let ct = match content_type.as_deref() {
+        Some("resourcepack") => Some(ContentType::ResourcePack),
+        Some("datapack") => Some(ContentType::DataPack),
+        Some("shader") => Some(ContentType::Shader),
+        Some("modpack") => Some(ContentType::Modpack),
+        Some("mod") | None => Some(ContentType::Mod),
+        _ => None,
+    };
     let q = SearchQuery {
         text,
-        content_type: Some(ContentType::Mod),
+        content_type: ct,
         game_versions: game_version.into_iter().collect(),
         loaders: loader.into_iter().collect(),
         limit: limit.unwrap_or(20),

@@ -42,7 +42,14 @@
     </section>
     <section>
       <h2>Mods</h2>
-      <input id="q" placeholder="Search Modrinth mods…" value="sodium" />
+      <select id="content-type">
+        <option value="mod">Mods</option>
+        <option value="resourcepack">Resource packs</option>
+        <option value="shader">Shaders</option>
+        <option value="datapack">Datapacks</option>
+        <option value="modpack">Modpacks</option>
+      </select>
+      <input id="q" placeholder="Search Modrinth…" value="sodium" />
       <button id="go">Search</button>
       <div id="results"></div>
     </section>
