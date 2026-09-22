@@ -5,74 +5,566 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rem Launcher</title>
     <style>
-      body { font-family: system-ui, sans-serif; background: #7dd3fc; color: #0c4a6e; margin: 2rem; }
-      #results, #accounts, #instances { display: grid; gap: 0.75rem; margin-top: 1rem; }
-      .card { background: #fff; border-radius: 0.5rem; padding: 0.75rem 1rem; display: flex; gap: 0.5rem; align-items: center; }
-      .card button { margin-left: auto; }
-      section { margin-top: 2rem; }
-      #code { font-size: 1.5rem; font-weight: bold; }
+      :root {
+        --bg-main: #0b1329;
+        --bg-panel: rgba(17, 28, 54, 0.85);
+        --bg-card: #16223f;
+        --bg-input: #0e172e;
+        --border: #23355d;
+        --border-hover: #3b82f6;
+        --text: #e2e8f0;
+        --text-dim: #94a3b8;
+        --accent: #38bdf8;
+        --accent-glow: rgba(56, 189, 248, 0.3);
+        --rem-blue: #60a5fa;
+        --rem-ribbon: #93c5fd;
+        --danger: #ef4444;
+        --danger-bg: rgba(239, 68, 68, 0.15);
+        --success: #10b981;
+        --radius-sm: 6px;
+        --radius: 10px;
+        --radius-lg: 16px;
+        --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: var(--font);
+        background: radial-gradient(circle at 15% 15%, #132448 0%, var(--bg-main) 60%);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        line-height: 1.5;
+        overflow-y: scroll;
+      }
+
+      header {
+        background: rgba(11, 19, 41, 0.9);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+        padding: 0.85rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+
+      .logo-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .logo-heart {
+        font-size: 1.6rem;
+        filter: drop-shadow(0 0 8px var(--accent));
+        animation: pulse 2.5s infinite ease-in-out;
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+      }
+
+      .app-title {
+        font-size: 1.3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--rem-ribbon) 0%, var(--accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -0.02em;
+      }
+
+      .app-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+      }
+
+      nav.tabs {
+        display: flex;
+        gap: 0.4rem;
+        background: var(--bg-input);
+        padding: 0.3rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+      }
+
+      .tab-btn {
+        background: transparent;
+        color: var(--text-dim);
+        border: none;
+        padding: 0.45rem 0.9rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .tab-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .tab-btn.active {
+        background: var(--rem-blue);
+        color: #0b1329;
+        box-shadow: 0 2px 8px rgba(96, 165, 250, 0.35);
+      }
+
+      main {
+        flex: 1;
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 1.75rem 1.5rem 3rem;
+      }
+
+      .tab-content {
+        display: none;
+        animation: fadeIn 0.18s ease forwards;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .section-card {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(8px);
+        margin-bottom: 1.5rem;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 0.75rem;
+      }
+
+      .section-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .controls-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      input, select {
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 0.55rem 0.85rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.9rem;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      input:focus, select:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-glow);
+      }
+
+      input::placeholder {
+        color: #475569;
+      }
+
+      button {
+        background: #1e3a8a;
+        color: #e0f2fe;
+        border: 1px solid #3b82f6;
+        padding: 0.55rem 1rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.15s ease;
+      }
+
+      button:hover:not(:disabled) {
+        background: #2563eb;
+        border-color: #60a5fa;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      }
+
+      button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      button.primary {
+        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+        border-color: #38bdf8;
+        color: #ffffff;
+        font-weight: 700;
+      }
+
+      button.primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+        box-shadow: 0 4px 16px var(--accent-glow);
+      }
+
+      button.danger {
+        background: var(--danger-bg);
+        border-color: var(--danger);
+        color: #fca5a5;
+      }
+
+      button.danger:hover:not(:disabled) {
+        background: var(--danger);
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      }
+
+      /* Grid of items (instances, mods, accounts) */
+      #results, #accounts, #instances {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 0.85rem 1.15rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+
+      .card:hover {
+        border-color: rgba(56, 189, 248, 0.5);
+      }
+
+      .card span {
+        flex: 1;
+        min-width: 200px;
+        font-weight: 500;
+      }
+
+      .card img {
+        border-radius: 4px;
+        background: #000;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      }
+
+      .card button {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.82rem;
+      }
+
+      /* Play Banner / Dashboard Hero */
+      .play-hero {
+        background: linear-gradient(135deg, rgba(30, 58, 138, 0.4) 0%, rgba(14, 116, 144, 0.3) 100%);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: var(--radius-lg);
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        margin-bottom: 1.75rem;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      }
+
+      .play-selectors {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+      }
+
+      .selector-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        flex: 1;
+        min-width: 220px;
+      }
+
+      .selector-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--accent);
+        letter-spacing: 0.05em;
+      }
+
+      .play-btn-large {
+        font-size: 1.15rem;
+        padding: 0.75rem 2rem;
+        background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+        color: #ffffff;
+        border: none;
+        border-radius: var(--radius);
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .play-btn-large:hover:not(:disabled) {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 6px 25px rgba(56, 189, 248, 0.5);
+      }
+
+      progress {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        appearance: none;
+        border: none;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      progress::-webkit-progress-bar {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      progress::-webkit-progress-value {
+        background: linear-gradient(90deg, #38bdf8, #60a5fa);
+        border-radius: 999px;
+      }
+
+      #play-status {
+        font-size: 0.9rem;
+        color: var(--rem-ribbon);
+        font-weight: 500;
+        min-height: 1.2rem;
+      }
+
+      #code {
+        background: rgba(56, 189, 248, 0.1);
+        border: 1px dashed var(--accent);
+        padding: 1rem;
+        border-radius: var(--radius);
+        margin: 0.75rem 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--accent);
+        text-align: center;
+        display: none;
+      }
+
+      #code:not(:empty) {
+        display: block;
+      }
+
+      pre#game-log {
+        background: #050a17;
+        color: #cbd5e1;
+        font-family: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+        font-size: 0.84rem;
+        padding: 1rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        overflow-x: auto;
+        max-height: 420px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin-top: 0.75rem;
+      }
+
+      pre#game-log:empty {
+        display: none;
+      }
+
+      footer {
+        text-align: center;
+        padding: 1.5rem;
+        color: #475569;
+        font-size: 0.8rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
     </style>
   </head>
   <body>
-    <h1>💙 Rem Launcher</h1>
-    <section>
-      <h2>Play</h2>
-      <select id="play-account"></select>
-      <select id="play-instance"></select>
-      <button id="play-btn">Play</button>
-      <button id="log-btn">Show log</button>
-      <progress id="launch-progress" max="100" value="0" hidden></progress>
-      <div id="play-status"></div>
-      <pre id="game-log"></pre>
-    </section>
-    <section>
-      <h2>Accounts</h2>
-      <input id="offline-name" placeholder="Offline username" maxlength="16" />
-      <button id="add-offline">Add offline account</button>
-      <button id="add-ms">Add Microsoft account</button>
-      <div id="code"></div>
-      <div id="accounts"></div>
-    </section>
-    <section>
-      <h2>Instances</h2>
-      <input id="inst-name" placeholder="Instance name" maxlength="64" />
-      <select id="inst-version"></select>
-      <input id="inst-loader" placeholder="Loader (vanilla/fabric/forge)" value="fabric" />
-      <button id="create-inst">Create instance</button>
-      <input id="mrpack-path" placeholder="Path to .mrpack file" size="40" />
-      <button id="import-mrpack">Import .mrpack</button>
-      <input id="export-path" placeholder="Export to path…" size="40" />
-      <button id="export-mrpack">Export selected</button>
-      <div id="instances"></div>
-    </section>
-    <section>
-      <h2>Mods</h2>
-      <select id="content-type">
-        <option value="mod">Mods</option>
-        <option value="resourcepack">Resource packs</option>
-        <option value="shader">Shaders</option>
-        <option value="datapack">Datapacks</option>
-        <option value="modpack">Modpacks</option>
-      </select>
-      <input id="q" placeholder="Search Modrinth…" value="sodium" />
-      <select id="search-version"><option value="">Any version</option></select>
-      <select id="search-loader">
-        <option value="">Any loader</option>
-        <option value="fabric">Fabric</option>
-        <option value="forge">Forge</option>
-        <option value="neoforge">NeoForge</option>
-        <option value="quilt">Quilt</option>
-      </select>
-      <select id="search-sort">
-        <option value="relevance">Relevance</option>
-        <option value="downloads">Downloads</option>
-        <option value="follows">Follows</option>
-        <option value="newest">Newest</option>
-        <option value="updated">Recently updated</option>
-      </select>
-      <button id="go">Search</button>
-      <div id="results"></div>
-    </section>
+    <header>
+      <div class="logo-group">
+        <span class="logo-heart">💙</span>
+        <span class="app-title">Rem Launcher</span>
+        <span class="app-badge">Local-First</span>
+      </div>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="tab-play">Play</button>
+        <button class="tab-btn" data-tab="tab-instances">Instances</button>
+        <button class="tab-btn" data-tab="tab-mods">Browse Content</button>
+        <button class="tab-btn" data-tab="tab-accounts">Accounts</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- TAB: PLAY -->
+      <div id="tab-play" class="tab-content active">
+        <div class="play-hero">
+          <div class="play-selectors">
+            <div class="selector-group">
+              <span class="selector-label">Account</span>
+              <select id="play-account"></select>
+            </div>
+            <div class="selector-group">
+              <span class="selector-label">Instance</span>
+              <select id="play-instance"></select>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+              <button id="play-btn" class="play-btn-large">Play</button>
+              <button id="log-btn">Show log</button>
+            </div>
+          </div>
+          <progress id="launch-progress" max="100" value="0" hidden></progress>
+          <div id="play-status"></div>
+        </div>
+        <pre id="game-log"></pre>
+      </div>
+
+      <!-- TAB: INSTANCES -->
+      <div id="tab-instances" class="tab-content">
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">📦 Create Instance</h2>
+          </div>
+          <div class="controls-bar">
+            <input id="inst-name" placeholder="Instance name" maxlength="64" />
+            <select id="inst-version"></select>
+            <input id="inst-loader" placeholder="Loader (fabric/quilt/vanilla)" value="fabric" />
+            <button id="create-inst" class="primary">Create instance</button>
+          </div>
+          <div class="controls-bar" style="margin-top: 0.5rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
+            <input id="mrpack-path" placeholder="Path to .mrpack file" size="36" />
+            <button id="import-mrpack">Import .mrpack</button>
+            <input id="export-path" placeholder="Export to path…" size="36" />
+            <button id="export-mrpack">Export selected</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">📂 Installed Instances</h2>
+          </div>
+          <div id="instances"></div>
+        </div>
+      </div>
+
+      <!-- TAB: MODS / CONTENT -->
+      <div id="tab-mods" class="tab-content">
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">🔍 Browse Modrinth</h2>
+          </div>
+          <div class="controls-bar">
+            <select id="content-type">
+              <option value="mod">Mods</option>
+              <option value="resourcepack">Resource packs</option>
+              <option value="shader">Shaders</option>
+              <option value="datapack">Datapacks</option>
+              <option value="modpack">Modpacks</option>
+            </select>
+            <input id="q" placeholder="Search query…" value="sodium" style="flex: 1; min-width: 180px;" />
+            <select id="search-version"><option value="">Any version</option></select>
+            <select id="search-loader">
+              <option value="">Any loader</option>
+              <option value="fabric">Fabric</option>
+              <option value="forge">Forge</option>
+              <option value="neoforge">NeoForge</option>
+              <option value="quilt">Quilt</option>
+            </select>
+            <select id="search-sort">
+              <option value="relevance">Relevance</option>
+              <option value="downloads">Downloads</option>
+              <option value="follows">Follows</option>
+              <option value="newest">Newest</option>
+              <option value="updated">Recently updated</option>
+            </select>
+            <button id="go" class="primary">Search</button>
+          </div>
+          <div id="results"></div>
+        </div>
+      </div>
+
+      <!-- TAB: ACCOUNTS -->
+      <div id="tab-accounts" class="tab-content">
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">👤 Add Account</h2>
+          </div>
+          <div class="controls-bar">
+            <input id="offline-name" placeholder="Offline username" maxlength="16" />
+            <button id="add-offline">Add offline account</button>
+            <button id="add-ms" class="primary">Add Microsoft account</button>
+          </div>
+          <div id="code"></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">👥 Stored Accounts</h2>
+          </div>
+          <div id="accounts"></div>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      Rem Launcher &middot; Local-first &middot; Multi-account &middot; Modrinth integration
+    </footer>
+
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Tab switcher
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+          btn.classList.add("active");
+          const target = document.getElementById(btn.dataset.tab);
+          if (target) target.classList.add("active");
+        });
+      });
+    </script>
   </body>
 </html>
