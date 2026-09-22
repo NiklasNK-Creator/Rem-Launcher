@@ -348,7 +348,8 @@ pub fn list_instance_mods(app: AppHandle, instance: String) -> Result<Vec<String
 #[tauri::command]
 pub fn remove_content_item(app: AppHandle, instance: String, relative_path: String) -> Result<Vec<String>, String> {
     let (subdir, leaf) = relative_path.split_once('/').ok_or("content path must include a directory")?;
-    if !["mods", "resourcepacks", "shaderpacks", "datapacks"].contains(&subdir) || !valid_file_name(leaf) {
+    let base_leaf = leaf.strip_suffix(".disabled").unwrap_or(leaf);
+    if !["mods", "resourcepacks", "shaderpacks", "datapacks"].contains(&subdir) || !valid_file_name(base_leaf) {
         return Err("invalid content file name".into());
     }
     let target = data_root(&app)?.join(&instance).join(subdir).join(leaf);
@@ -356,7 +357,46 @@ pub fn remove_content_item(app: AppHandle, instance: String, relative_path: Stri
         std::fs::remove_file(&target).map_err(|e| e.to_string())?;
     }
     let mut locked = load_locked(&app, &instance);
-    locked.retain(|m| !(m.file_name == leaf && content_dir(m.content_type.as_deref()) == subdir));
+    locked.retain(|m| !((m.file_name == leaf || m.file_name == base_leaf) && content_dir(m.content_type.as_deref()) == subdir));
+    let _ = save_locked(&app, &instance, &locked);
+    list_instance_mods(app, instance)
+}
+
+/// Toggle a content item between enabled (*.jar, *.zip) and disabled (*.disabled).
+#[tauri::command]
+pub fn toggle_content_item(app: AppHandle, instance: String, relative_path: String) -> Result<Vec<String>, String> {
+    let (subdir, leaf) = relative_path.split_once('/').ok_or("content path must include a directory")?;
+    if !["mods", "resourcepacks", "shaderpacks", "datapacks"].contains(&subdir) {
+        return Err("invalid content directory".into());
+    }
+    let is_disabled = leaf.ends_with(".disabled");
+    let base_leaf = if is_disabled {
+        leaf.strip_suffix(".disabled").unwrap()
+    } else {
+        leaf
+    };
+    if !valid_file_name(base_leaf) {
+        return Err("invalid content file name".into());
+    }
+    let root = data_root(&app)?.join(&instance).join(subdir);
+    let current_path = root.join(leaf);
+    if !current_path.exists() {
+        return Err("file does not exist".into());
+    }
+    let new_leaf = if is_disabled {
+        base_leaf.to_string()
+    } else {
+        format!("{base_leaf}.disabled")
+    };
+    let new_path = root.join(&new_leaf);
+    std::fs::rename(&current_path, &new_path).map_err(|e| e.to_string())?;
+
+    let mut locked = load_locked(&app, &instance);
+    for m in &mut locked {
+        if (m.file_name == leaf || m.file_name == base_leaf) && content_dir(m.content_type.as_deref()) == subdir {
+            m.file_name = new_leaf.clone();
+        }
+    }
     let _ = save_locked(&app, &instance, &locked);
     list_instance_mods(app, instance)
 }

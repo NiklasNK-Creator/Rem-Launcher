@@ -147,11 +147,17 @@ function renderInstances(list: Instance[]) {
       for (const f of files) {
         const row = document.createElement("div");
         const name = document.createElement("span");
-        const upd = updates[f];
-        name.textContent = upd ? `${f} — update: ${upd.installed} → ${upd.latest}` : f;
+        const isDisabled = f.endsWith(".disabled");
+        const cleanName = isDisabled ? f.slice(0, -9) : f;
+        const upd = updates[f] ?? updates[cleanName];
+        const displayName = isDisabled ? `${cleanName} [Disabled]` : f;
+        name.textContent = upd ? `${displayName} — update: ${upd.installed} → ${upd.latest}` : displayName;
+        if (isDisabled) {
+          name.style.opacity = "0.6";
+        }
         row.append(name);
         let updateBtn: HTMLButtonElement | null = null;
-        if (upd) {
+        if (upd && !isDisabled) {
           updateBtn = document.createElement("button");
           updateBtn.textContent = "Update";
           updateBtn.onclick = async () => {
@@ -189,6 +195,16 @@ function renderInstances(list: Instance[]) {
           };
           row.append(updateBtn);
         }
+        const toggleBtn = document.createElement("button");
+        toggleBtn.textContent = isDisabled ? "Enable" : "Disable";
+        toggleBtn.onclick = async () => {
+          try {
+            await invoke<string[]>("toggle_content_item", { instance: i.name, relativePath: f });
+            modsBtn.click();
+          } catch (e) {
+            name.textContent = `${f} — toggle failed: ${e}`;
+          }
+        };
         const rm = document.createElement("button");
         rm.textContent = "Remove";
         rm.onclick = async () => {
@@ -196,10 +212,10 @@ function renderInstances(list: Instance[]) {
           row.remove();
           label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${rest.length} items`;
         };
-        row.append(rm);
+        row.append(toggleBtn, rm);
         modList.appendChild(row);
       }
-      label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${files.length} mods`;
+      label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${files.length} items`;
     };
     instEl.appendChild(div);
     instEl.appendChild(modList);
