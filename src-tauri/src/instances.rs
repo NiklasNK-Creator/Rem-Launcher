@@ -346,12 +346,12 @@ pub fn list_instance_mods(app: AppHandle, instance: String) -> Result<Vec<String
 }
 
 #[tauri::command]
-pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result<Vec<String>, String> {
-    let (subdir, leaf) = file_name.split_once('/').unwrap_or(("mods", file_name.as_str()));
+pub fn remove_content_item(app: AppHandle, instance: String, relative_path: String) -> Result<Vec<String>, String> {
+    let (subdir, leaf) = relative_path.split_once('/').ok_or("content path must include a directory")?;
     if !["mods", "resourcepacks", "shaderpacks", "datapacks"].contains(&subdir) || !valid_file_name(leaf) {
         return Err("invalid content file name".into());
     }
-    let target = data_root(&app)?.join(&instance).join(content_dir(Some(subdir))).join(leaf);
+    let target = data_root(&app)?.join(&instance).join(subdir).join(leaf);
     if target.exists() {
         std::fs::remove_file(&target).map_err(|e| e.to_string())?;
     }
@@ -359,6 +359,16 @@ pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result
     locked.retain(|m| !(m.file_name == leaf && content_dir(m.content_type.as_deref()) == subdir));
     let _ = save_locked(&app, &instance, &locked);
     list_instance_mods(app, instance)
+}
+
+#[tauri::command]
+pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result<Vec<String>, String> {
+    let path = if file_name.contains('/') {
+        file_name
+    } else {
+        format!("mods/{file_name}")
+    };
+    remove_content_item(app, instance, path)
 }
 
 #[tauri::command]

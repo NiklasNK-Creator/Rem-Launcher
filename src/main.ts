@@ -192,9 +192,9 @@ function renderInstances(list: Instance[]) {
         const rm = document.createElement("button");
         rm.textContent = "Remove";
         rm.onclick = async () => {
-          const rest = await invoke<string[]>("remove_mod", { instance: i.name, fileName: f });
+          const rest = await invoke<string[]>("remove_content_item", { instance: i.name, relativePath: f });
           row.remove();
-          label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${rest.length} mods`;
+          label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${rest.length} items`;
         };
         row.append(rm);
         modList.appendChild(row);
