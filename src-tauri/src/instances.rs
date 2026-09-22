@@ -9,6 +9,10 @@ pub struct Instance {
     pub name: String,
     pub game_version: String,
     pub loader: String,
+    #[serde(default)]
+    pub jvm_args: Option<String>,
+    #[serde(default)]
+    pub max_memory_mb: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,9 +124,70 @@ pub fn create_instance(
     for sub in ["mods", "resourcepacks", "shaderpacks", "datapacks"] {
         std::fs::create_dir_all(data_root(&app)?.join(name).join(sub)).map_err(|e| e.to_string())?;
     }
-    all.push(Instance { name: name.into(), game_version, loader });
+    all.push(Instance {
+        name: name.into(),
+        game_version,
+        loader,
+        jvm_args: None,
+        max_memory_mb: None,
+    });
     save_all(&app, &all)?;
     Ok(all)
+}
+
+#[tauri::command]
+pub fn configure_instance(
+    app: AppHandle,
+    name: String,
+    max_memory_mb: Option<u32>,
+    jvm_args: Option<String>,
+) -> Result<Vec<Instance>, String> {
+    if !valid_instance_name(&name) {
+        return Err("invalid instance name".into());
+    }
+    let mut all = load_all(&app);
+    let trimmed = name.trim();
+    if let Some(inst) = all.iter_mut().find(|i| i.name == trimmed) {
+        inst.max_memory_mb = max_memory_mb;
+        inst.jvm_args = jvm_args.filter(|s| !s.trim().is_empty());
+        save_all(&app, &all)?;
+        Ok(all)
+    } else {
+        Err("unknown instance".into())
+    }
+}
+
+#[tauri::command]
+pub fn open_instance_folder(app: AppHandle, name: String) -> Result<(), String> {
+    if !valid_instance_name(&name) {
+        return Err("invalid instance name".into());
+    }
+    let dir = data_root(&app)?.join(name.trim());
+    if !dir.exists() {
+        return Err("instance folder does not exist".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 fn valid_file_name(name: &str) -> bool {

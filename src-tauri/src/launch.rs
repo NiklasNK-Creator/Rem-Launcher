@@ -554,9 +554,28 @@ pub async fn launch_game(
         }
         out
     };
-    let mut args: Vec<String> = vec![
+    let (max_mem, custom_jvm) = if let Some(name) = &instance {
+        let instances = crate::instances::list_instances(app.clone());
+        instances
+            .into_iter()
+            .find(|i| i.name == *name)
+            .map(|i| (i.max_memory_mb, i.jvm_args))
+            .unwrap_or((None, None))
+    } else {
+        (None, None)
+    };
+
+    let mut jvm_prefix = vec![
         format!("-Djava.library.path={}", natives_dir.to_string_lossy()),
+        format!("-Xmx{}M", max_mem.unwrap_or(4096)),
     ];
+    if let Some(extra) = custom_jvm {
+        for part in extra.split_whitespace() {
+            jvm_prefix.push(part.to_string());
+        }
+    }
+
+    let mut args: Vec<String> = jvm_prefix.clone();
     if let Some(arguments) = &pkg.arguments {
         // Modern (>=1.13) packages: rule-filtered jvm + game args.
         for entry in arguments.get("jvm").and_then(|v| v.as_array()).map(|a| a.as_slice()).unwrap_or(&[]) {
@@ -570,8 +589,7 @@ pub async fn launch_game(
             args.extend(extract_arg(entry, &sub));
         }
     } else {
-        // Legacy (<=1.12): fixed template; minecraftArguments variant ignored
-        // (same fields, different order — vanilla accepts any order).
+        // Legacy (<=1.12): fixed template with JVM prefix before -cp.
         args.extend([
             "-cp".to_string(),
             classpath,

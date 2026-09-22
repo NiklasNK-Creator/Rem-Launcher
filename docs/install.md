@@ -7,4 +7,7 @@
   `launch_game` downloads client jar, rule-filtered libraries, and the asset
   index/objects (hash-verified) into app-data, then spawns `java` with the
   classpath + game args for the selected account (msa/legacy userType).
-  Play UI: account + instance selectors, status line with pid/errors.
+  JVM heap is configurable per instance (`max_memory_mb`, default 4096MB)
+  with custom JVM arguments support.
+  Play UI: account + instance selectors, status line with pid/errors,
+  per-instance Configure (RAM) and Folder (Explorer/Finder) actions.

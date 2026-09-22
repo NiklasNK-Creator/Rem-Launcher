@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { addMicrosoftAccount, addOfflineAccount, type Account } from "./auth";
 
 type Project = { id: string; title: string; description: string; downloads: number };
-type Instance = { name: string; game_version: string; loader: string };
+type Instance = { name: string; game_version: string; loader: string; max_memory_mb?: number | null; jvm_args?: string | null };
 type VersionFile = { name: string; url: string; sha512: string | null; primary: boolean };
 type VersionDep = { project_id: string | null; dependency_type: string };
 type ProjectVersion = { version_number: string; files: VersionFile[]; dependencies: VersionDep[] };
@@ -70,7 +70,7 @@ function renderInstances(list: Instance[]) {
     const div = document.createElement("div");
     div.className = "card";
     const label = document.createElement("span");
-    label.textContent = `${i.name} — ${i.game_version} (${i.loader})`;
+    label.textContent = `${i.name} — ${i.game_version} (${i.loader}) [${i.max_memory_mb ?? 4096}MB]`;
     const modsBtn = document.createElement("button");
     modsBtn.textContent = "Mods";
     const verifyBtn = document.createElement("button");
@@ -85,7 +85,26 @@ function renderInstances(list: Instance[]) {
       const r = await invoke<{ missing_files: string[]; untracked_files: string[]; ok_tracked: number }>("repair_instance", { instance: i.name });
       label.textContent = `${i.name}: repaired — ${r.ok_tracked} ok, ${r.untracked_files.length} untracked`;
     };
-    div.append(label, modsBtn, verifyBtn, repairBtn);
+    const configureBtn = document.createElement("button");
+    configureBtn.textContent = "Configure";
+    configureBtn.onclick = async () => {
+      const raw = prompt("Max memory in MB (blank = 4096):", String(i.max_memory_mb ?? 4096));
+      if (raw === null) return;
+      const memory = raw.trim() ? Number(raw) : 4096;
+      if (!Number.isInteger(memory) || memory < 512 || memory > 65536) {
+        label.textContent = "Memory must be an integer from 512 to 65536 MB";
+        return;
+      }
+      const updated = await invoke<Instance[]>("configure_instance", { name: i.name, maxMemoryMb: memory, jvmArgs: null });
+      renderInstances(updated);
+    };
+    const folderBtn = document.createElement("button");
+    folderBtn.textContent = "Folder";
+    folderBtn.onclick = async () => {
+      try { await invoke("open_instance_folder", { name: i.name }); }
+      catch (e) { label.textContent = `Folder failed: ${e}`; }
+    };
+    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn);
     const delInst = document.createElement("button");
     delInst.textContent = "Delete";
     delInst.onclick = async () => {
