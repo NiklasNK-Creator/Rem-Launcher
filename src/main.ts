@@ -346,20 +346,45 @@ go.onclick = async () => {
       gameVersion: sv || null, loader: sl || null, sort,
     });
     results.innerHTML = "";
-    for (const h of hits) {
-      const div = document.createElement("div");
-      div.className = "card";
-      const title = document.createElement("strong");
-      title.textContent = h.title;
-      const meta = document.createElement("span");
-      meta.textContent = ` — ${h.downloads} downloads`;
-      const btn = document.createElement("button");
-      btn.textContent = ct === "modpack" ? "Install pack" : ct === "mod" ? "Install" : "Download";
-      btn.onclick = () => (ct === "modpack" ? installPack(h.id) : installToFirstInstance(h.id, ct));
-      div.append(title, meta, btn);
-      results.appendChild(div);
-    }
+    let page = 0;
+    const render = (items: Project[]) => {
+      for (const h of items) {
+        const div = document.createElement("div");
+        div.className = "card";
+        const title = document.createElement("strong");
+        title.textContent = h.title;
+        const meta = document.createElement("span");
+        meta.textContent = ` — ${h.downloads} downloads`;
+        const btn = document.createElement("button");
+        btn.textContent = ct === "modpack" ? "Install pack" : ct === "mod" ? "Install" : "Download";
+        btn.onclick = () => (ct === "modpack" ? installPack(h.id) : installToFirstInstance(h.id, ct));
+        div.append(title, meta, btn);
+        results.appendChild(div);
+      }
+    };
+    render(hits);
     if (hits.length === 0) results.textContent = "No results.";
+    if (hits.length === 20) {
+      const more = document.createElement("button");
+      more.textContent = "Load more";
+      more.onclick = async () => {
+        page += 1;
+        more.disabled = true;
+        try {
+          const next = await invoke<Project[]>("search_mods", {
+            text: q.value, limit: 20, contentType: ct,
+            gameVersion: sv || null, loader: sl || null, sort, offset: page * 20,
+          });
+          more.remove();
+          render(next);
+          if (next.length === 20) results.appendChild(more);
+        } catch (e) {
+          more.textContent = `Failed: ${e}`;
+          more.disabled = false;
+        }
+      };
+      results.appendChild(more);
+    }
   } catch (e) {
     results.textContent = `Error: ${e}`;
   }

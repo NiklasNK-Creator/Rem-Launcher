@@ -25,6 +25,7 @@ async fn search_mods(
     limit: Option<u32>,
     content_type: Option<String>,
     sort: Option<String>,
+    offset: Option<u32>,
 ) -> Result<Vec<launcher_core::models::Project>, String> {
     use launcher_core::models::ContentType;
     let ct = match content_type.as_deref() {
@@ -41,7 +42,7 @@ async fn search_mods(
         game_versions: game_version.into_iter().collect(),
         loaders: loader.into_iter().collect(),
         limit: limit.unwrap_or(20),
-        offset: 0,
+        offset: offset.unwrap_or(0),
         sort,
     };
     state.modrinth.search(&q).await.map_err(|e| e.to_string())
