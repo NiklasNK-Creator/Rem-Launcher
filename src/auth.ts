@@ -38,10 +38,12 @@ export async function addOfflineAccount(name: string): Promise<Account[]> {
 export async function addMicrosoftAccount(
   onCode: (code: string, uri: string) => void,
 ): Promise<Account[]> {
+  // NOTE: token cache is in-memory (prismarine-auth default); the captured
+  // access token expires (~24h). Re-adding the account refreshes it.
   const flow = new Authflow(`ms:${Date.now()}`, undefined, {}, (code: { user_code: string; verification_uri: string }) =>
     onCode(code.user_code, code.verification_uri),
   );
-  const { profile } = await flow.getMinecraftJavaToken({ fetchProfile: true });
+  const { token, profile } = await flow.getMinecraftJavaToken({ fetchProfile: true });
   const p = profile as { id: string; name: string };
   return invoke("add_account", {
     account: {
@@ -49,6 +51,7 @@ export async function addMicrosoftAccount(
       kind: "microsoft",
       mc_name: p.name,
       uuid: p.id,
+      ms_refresh: { accessToken: token },
     } satisfies Account,
   });
 }

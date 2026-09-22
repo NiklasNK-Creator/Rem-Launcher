@@ -261,6 +261,7 @@ playBtn.onclick = async () => {
       accountId: acc.id,
       accountName: acc.mc_name,
       accountUuid: acc.uuid,
+      accessToken: (acc.ms_refresh as { accessToken?: string } | undefined)?.accessToken,
       instance: inst.name,
       loader: inst.loader,
     });
