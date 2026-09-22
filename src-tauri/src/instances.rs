@@ -101,8 +101,9 @@ pub fn create_instance(
     if all.iter().any(|i| i.name == name) {
         return Err("instance already exists".into());
     }
-    std::fs::create_dir_all(data_root(&app)?.join(name).join("mods"))
-        .map_err(|e| e.to_string())?;
+    for sub in ["mods", "resourcepacks", "shaderpacks", "datapacks"] {
+        std::fs::create_dir_all(data_root(&app)?.join(name).join(sub)).map_err(|e| e.to_string())?;
+    }
     all.push(Instance { name: name.into(), game_version, loader });
     save_all(&app, &all)?;
     Ok(all)
@@ -111,7 +112,6 @@ pub fn create_instance(
 fn valid_file_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('.') && !name.contains(['/', '\\'])
 }
-
 #[tauri::command]
 pub async fn install_mod(
     app: AppHandle,
@@ -121,15 +121,22 @@ pub async fn install_mod(
     sha512: Option<String>,
     project_id: Option<String>,
     version_number: Option<String>,
+    content_type: Option<String>,
 ) -> Result<String, String> {
     if !valid_file_name(&file_name) {
         return Err("invalid file name".into());
     }
+    let subdir = match content_type.as_deref() {
+        Some("resourcepack") => "resourcepacks",
+        Some("shader") => "shaderpacks",
+        Some("datapack") => "datapacks",
+        _ => "mods",
+    };
     let all = load_all(&app);
     if !all.iter().any(|i| i.name == instance) {
         return Err("unknown instance".into());
     }
-    let dest = data_root(&app)?.join(&instance).join("mods").join(&file_name);
+    let dest = data_root(&app)?.join(&instance).join(subdir).join(&file_name);
     let bytes = reqwest::get(&url).await.map_err(|e| e.to_string())?
         .bytes().await.map_err(|e| e.to_string())?;
     if let Some(expect) = sha512 {

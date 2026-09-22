@@ -154,7 +154,7 @@ function renderInstances(list: Instance[]) {
   if (list.length === 0) instEl.textContent = "No instances yet.";
 }
 
-async function installToFirstInstance(projectId: string) {
+async function installToFirstInstance(projectId: string, ct: string) {
   const list = await invoke<Instance[]>("list_instances");
   const target = list[0];
   if (!target) {
@@ -245,7 +245,7 @@ async function installToFirstInstance(projectId: string) {
         if (!dv || !df) continue;
         await invoke("install_mod", {
           instance: target.name, fileName: df.name, url: df.url, sha512: df.sha512,
-          projectId: dep.project_id, versionNumber: dv.version_number,
+          projectId: dep.project_id, versionNumber: dv.version_number, contentType: "mod",
         });
         await doInstall(dep.project_id, dv, wantOptional);
       } catch {
@@ -256,7 +256,7 @@ async function installToFirstInstance(projectId: string) {
     if (!file) return;
     await invoke("install_mod", {
       instance: target.name, fileName: file.name, url: file.url, sha512: file.sha512,
-      projectId: pid, versionNumber: ver.version_number,
+      projectId: pid, versionNumber: ver.version_number, contentType: ct,
     });
   };
   confirm.onclick = async () => {
@@ -309,7 +309,7 @@ go.onclick = async () => {
       meta.textContent = ` — ${h.downloads} downloads`;
       const btn = document.createElement("button");
       btn.textContent = ct === "mod" ? "Install" : "Download";
-      btn.onclick = () => installToFirstInstance(h.id);
+      btn.onclick = () => installToFirstInstance(h.id, ct);
       div.append(title, meta, btn);
       results.appendChild(div);
     }
