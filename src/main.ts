@@ -153,39 +153,106 @@ async function installToFirstInstance(projectId: string) {
     results.textContent = "No compatible version for this instance.";
     return;
   }
-  // Install required dependencies first (recursive, cycle-safe).
-  const installed = new Set<string>([projectId]);
-  async function installWithDeps(pid: string, ver: ProjectVersion, inst: Instance) {
+  // Resolve full dep tree for preview (cycle-safe).
+  type DepNode = { pid: string; title: string; version: string; kind: string; children: DepNode[] };
+  const seen = new Set<string>([projectId]);
+  async function resolve(pid: string, ver: ProjectVersion): Promise<DepNode[]> {
+    const out: DepNode[] = [];
     for (const dep of ver.dependencies ?? []) {
-      if (dep.dependency_type !== "required" || !dep.project_id || installed.has(dep.project_id)) continue;
-      installed.add(dep.project_id);
+      if (!dep.project_id || seen.has(dep.project_id)) continue;
+      seen.add(dep.project_id);
       try {
         const dvs = await invoke<ProjectVersion[]>("project_versions", {
-          projectId: dep.project_id,
-          gameVersions: [inst.game_version],
-          loaders: [inst.loader],
+          projectId: dep.project_id, gameVersions: [target.game_version], loaders: [target.loader],
+        });
+        const dv = dvs[0];
+        if (!dv) continue;
+        const proj = await invoke<{ title: string }>("project_info", { projectId: dep.project_id }).catch(() => ({ title: dep.project_id }));
+        out.push({ pid: dep.project_id, title: proj.title, version: dv.version_number, kind: dep.dependency_type, children: await resolve(dep.project_id, dv) });
+      } catch {
+        // unresolvable: skip
+      }
+    }
+    return out;
+  }
+  const tree = await resolve(projectId, v);
+  // Preview panel with optional-dep checkboxes.
+  results.innerHTML = "";
+  const panel = document.createElement("div");
+  panel.className = "card";
+  const heading = document.createElement("strong");
+  heading.textContent = `Install ${f.name} (${v.version_number}) into ${target.name}?`;
+  panel.appendChild(heading);
+  const listEl = document.createElement("div");
+  const optionalChecks: { pid: string; checked: () => boolean }[] = [];
+  function renderNode(n: DepNode, depth: number) {
+    const row = document.createElement("div");
+    const label = `${"  ".repeat(depth)}${n.kind}: ${n.title} (${n.version})`;
+    if (n.kind === "optional") {
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = false;
+      const span = document.createElement("span");
+      span.textContent = label;
+      row.append(box, span);
+      optionalChecks.push({ pid: n.pid, checked: () => box.checked });
+    } else {
+      const span = document.createElement("span");
+      span.textContent = label;
+      row.appendChild(span);
+    }
+    listEl.appendChild(row);
+    for (const c of n.children) renderNode(c, depth + 1);
+  }
+  for (const n of tree) renderNode(n, 1);
+  panel.appendChild(listEl);
+  const confirm = document.createElement("button");
+  confirm.textContent = "Confirm install";
+  const cancel = document.createElement("button");
+  cancel.textContent = "Cancel";
+  panel.append(confirm, cancel);
+  results.appendChild(panel);
+  const doInstall = async (pid: string, ver: ProjectVersion, wantOptional: Set<string>) => {
+    for (const dep of ver.dependencies ?? []) {
+      if (!dep.project_id) continue;
+      const required = dep.dependency_type === "required";
+      if (!required && !wantOptional.has(dep.project_id)) continue;
+      try {
+        const dvs = await invoke<ProjectVersion[]>("project_versions", {
+          projectId: dep.project_id, gameVersions: [target.game_version], loaders: [target.loader],
         });
         const dv = dvs[0];
         const df = dv?.files.find((x) => x.primary) ?? dv?.files[0];
         if (!dv || !df) continue;
         await invoke("install_mod", {
-          instance: inst.name, fileName: df.name, url: df.url, sha512: df.sha512,
+          instance: target.name, fileName: df.name, url: df.url, sha512: df.sha512,
           projectId: dep.project_id, versionNumber: dv.version_number,
         });
-        await installWithDeps(dep.project_id, dv, inst);
+        await doInstall(dep.project_id, dv, wantOptional);
       } catch {
-        // missing dep version: install main mod anyway, note in status
+        // skip uninstallable dep
       }
     }
     const file = ver.files.find((x) => x.primary) ?? ver.files[0];
     if (!file) return;
     await invoke("install_mod", {
-      instance: inst.name, fileName: file.name, url: file.url, sha512: file.sha512,
+      instance: target.name, fileName: file.name, url: file.url, sha512: file.sha512,
       projectId: pid, versionNumber: ver.version_number,
     });
-  }
-  await installWithDeps(projectId, v, target);
-  results.textContent = `Installed ${f.name} (${v.version_number}) into ${target.name}.`;
+  };
+  confirm.onclick = async () => {
+    confirm.disabled = true;
+    const want = new Set(optionalChecks.filter((o) => o.checked()).map((o) => o.pid));
+    try {
+      await doInstall(projectId, v, want);
+      results.textContent = `Installed ${f.name} (${v.version_number}) into ${target.name}.`;
+    } catch (e) {
+      results.textContent = `Install failed: ${e}`;
+    }
+  };
+  cancel.onclick = () => {
+    results.textContent = "Install cancelled.";
+  };
 }
 
 addOfflineBtn.onclick = async () => {
