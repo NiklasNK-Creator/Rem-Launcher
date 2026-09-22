@@ -2723,6 +2723,8 @@ name = "rem-launcher"
 version = "0.1.0"
 dependencies = [
  "launcher-core",
+ "launcher-install",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tauri",

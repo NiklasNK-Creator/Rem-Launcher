@@ -8,6 +8,7 @@ use launcher_core::providers::ContentProvider;
 use std::sync::Arc;
 use tauri::State;
 mod accounts;
+mod launch;
 
 struct AppState {
     modrinth: Arc<ModrinthProvider>,
@@ -38,7 +39,7 @@ fn main() {
     };
     tauri::Builder::default()
         .manage(state)
-        .invoke_handler(tauri::generate_handler![search_mods, accounts::list_accounts, accounts::add_account, accounts::remove_account])
+        .invoke_handler(tauri::generate_handler![search_mods, accounts::list_accounts, accounts::add_account, accounts::remove_account, launch::prepare_client, launch::detect_java])
         .run(tauri::generate_context!())
         .expect("failed to run Rem Launcher");
 }
