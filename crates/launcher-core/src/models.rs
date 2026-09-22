@@ -20,6 +20,9 @@ pub struct SearchQuery {
     pub loaders: Vec<String>,
     pub limit: u32,
     pub offset: u32,
+    /// relevance (default), downloads, follows, newest, updated
+    #[serde(default)]
+    pub sort: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

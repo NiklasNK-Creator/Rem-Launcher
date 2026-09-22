@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { addMicrosoftAccount, addOfflineAccount, type Account } from "./auth";
 
 type Project = { id: string; title: string; description: string; downloads: number };
@@ -338,10 +339,11 @@ go.onclick = async () => {
   const ct = (document.querySelector<HTMLSelectElement>("#content-type")!).value;
   const sv = (document.querySelector<HTMLSelectElement>("#search-version")!).value;
   const sl = (document.querySelector<HTMLSelectElement>("#search-loader")!).value;
+  const sort = (document.querySelector<HTMLSelectElement>("#search-sort")!).value;
   try {
     const hits = await invoke<Project[]>("search_mods", {
       text: q.value, limit: 20, contentType: ct,
-      gameVersion: sv || null, loader: sl || null,
+      gameVersion: sv || null, loader: sl || null, sort,
     });
     results.innerHTML = "";
     for (const h of hits) {
@@ -438,7 +440,6 @@ const playBtn = document.querySelector<HTMLButtonElement>("#play-btn")!;
 const playStatus = document.querySelector<HTMLDivElement>("#play-status")!;
 const launchBar = document.querySelector<HTMLProgressElement>("#launch-progress")!;
 
-import { listen } from "@tauri-apps/api/event";
 listen<{ phase: string; done: number }>("launch-progress", (e) => {
   launchBar.hidden = false;
   launchBar.value = e.payload.done;

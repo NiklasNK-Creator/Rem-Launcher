@@ -167,8 +167,10 @@ impl ContentProvider for ModrinthProvider {
             query.limit.max(1).min(100),
             query.offset
         );
-        if !facets.is_empty() {
-            url.push_str(&format!("&facets={}", urlencoding::encode(&format!("[{}]", facets.join(",")))));
+        if let Some(sort) = &query.sort {
+            if matches!(sort.as_str(), "relevance" | "downloads" | "follows" | "newest" | "updated") {
+                url.push_str(&format!("&index={sort}"));
+            }
         }
         let resp: SearchResp = self.get(&url).await?;
         Ok(resp
