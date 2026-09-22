@@ -15,8 +15,11 @@ pub struct Account {
     /// Transient only: carried in on add, stored to keychain, never persisted.
     pub ms_refresh: Option<serde_json::Value>,
     pub last_used: Option<String>,
+    #[serde(default)]
+    pub skin_url: Option<String>,
+    #[serde(default)]
+    pub cape_id: Option<String>,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum AccountKind {

@@ -30,9 +30,18 @@ function renderAccounts(accounts: Account[]) {
   for (const a of sorted) {
     const div = document.createElement("div");
     div.className = "card";
+    if (a.skin_url) {
+      const img = document.createElement("img");
+      img.src = a.skin_url;
+      img.width = 32;
+      img.height = 32;
+      img.alt = "";
+      div.appendChild(img);
+    }
     const label = document.createElement("span");
     const last = a.last_used ? ` · last used ${new Date(Number(a.last_used) * 1000).toLocaleDateString()}` : "";
-    label.textContent = `${a.mc_name} [${a.kind}]${last}`;
+    const cape = a.cape_id ? " · cape" : "";
+    label.textContent = `${a.mc_name} [${a.kind}]${last}${cape}`;
     const useBtn = document.createElement("button");
     useBtn.textContent = "Use";
     useBtn.onclick = async () => {

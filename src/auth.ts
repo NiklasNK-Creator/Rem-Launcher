@@ -8,6 +8,8 @@ export type Account = {
   uuid: string;
   ms_refresh?: unknown;
   last_used?: string | null;
+  skin_url?: string | null;
+  cape_id?: string | null;
 };
 // Genuine vanilla offline UUID: MD5("OfflinePlayer:"+name), version 3 + RFC4122 variant.
 // Matches the vanilla launcher so offline worlds/skins stay consistent.
@@ -69,11 +71,12 @@ export async function addMicrosoftAccount(
     onCode(code.user_code, code.verification_uri),
   );
   const { token, entitlements, profile } = await flow.getMinecraftJavaToken({ fetchEntitlements: true, fetchProfile: true });
-  const p = profile as { id: string; name: string } | undefined;
+  const p = profile as { id: string; name: string; skins?: { id: string; state: string; url: string }[]; capes?: { id: string }[] } | undefined;
   if (!p?.id || !p?.name) throw new Error("no Minecraft Java profile on this account (game not owned?)");
   const items = (entitlements as { items?: { name?: string }[] } | undefined)?.items ?? [];
   const owned = items.some((e) => e?.name === "game_minecraft" || e?.name === "product_minecraft");
   if (items.length > 0 && !owned) throw new Error("account has no Minecraft Java entitlement");
+  const activeSkin = p.skins?.find((s) => s.state === "ACTIVE") ?? p.skins?.[0];
   return invoke("add_account", {
     account: {
       id: `microsoft:${p.id}`,
@@ -81,6 +84,8 @@ export async function addMicrosoftAccount(
       mc_name: p.name,
       uuid: p.id,
       ms_refresh: { accessToken: token },
+      skin_url: activeSkin?.url ?? null,
+      cape_id: p.capes?.[0]?.id ?? null,
     } satisfies Account,
   });
 }
