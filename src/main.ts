@@ -25,18 +25,28 @@ const instLoader = document.querySelector<HTMLInputElement>("#inst-loader")!;
 const createInst = document.querySelector<HTMLButtonElement>("#create-inst")!;
 
 function renderAccounts(accounts: Account[]) {
+  const sorted = [...accounts].sort((a, b) => (b.last_used ?? "").localeCompare(a.last_used ?? ""));
   accountsEl.innerHTML = "";
-  for (const a of accounts) {
+  for (const a of sorted) {
     const div = document.createElement("div");
     div.className = "card";
     const label = document.createElement("span");
-    label.textContent = `${a.mc_name} [${a.kind}]`;
+    const last = a.last_used ? ` · last used ${new Date(Number(a.last_used) * 1000).toLocaleDateString()}` : "";
+    label.textContent = `${a.mc_name} [${a.kind}]${last}`;
+    const useBtn = document.createElement("button");
+    useBtn.textContent = "Use";
+    useBtn.onclick = async () => {
+      await invoke("touch_account", { id: a.id });
+      const all = await invoke<Account[]>("list_accounts");
+      renderAccounts(all);
+      refreshPlaySelectors(a.id);
+    };
     const del = document.createElement("button");
     del.textContent = "Remove";
     del.onclick = async () => {
       renderAccounts(await invoke<Account[]>("remove_account", { id: a.id }));
     };
-    div.append(label, del);
+    div.append(label, useBtn, del);
     accountsEl.appendChild(div);
   }
   if (accounts.length === 0) accountsEl.textContent = "No accounts yet.";
@@ -384,13 +394,29 @@ exportMrpack.onclick = async () => {
     instEl.textContent = `Export failed: ${e}`;
   }
 };
+const playAccount = document.querySelector<HTMLSelectElement>("#play-account")!;
+const playInstance = document.querySelector<HTMLSelectElement>("#play-instance")!;
+
+async function refreshPlaySelectors(preferAccount?: string) {
+  const [accounts, instances] = await Promise.all([
+    invoke<Account[]>("list_accounts"),
+    invoke<Instance[]>("list_instances"),
+  ]);
+  const sorted = [...accounts].sort((a, b) => (b.last_used ?? "").localeCompare(a.last_used ?? ""));
+  playAccount.innerHTML = sorted.map((a) => `<option value="${a.id}">${a.mc_name} [${a.kind}]</option>`).join("");
+  if (preferAccount && sorted.some((a) => a.id === preferAccount)) playAccount.value = preferAccount;
+  else if (sorted[0]) playAccount.value = sorted[0].id;
+  playInstance.innerHTML = instances.map((i) => `<option value="${i.name}">${i.name} — ${i.game_version} (${i.loader})</option>`).join("");
+}
+
+invoke<Account[]>("list_accounts").then((a) => {
+  renderAccounts(a);
+  refreshPlaySelectors();
+});
 invoke<Instance[]>("list_instances").then((l) => {
   renderInstances(l);
   refreshPlaySelectors();
 });
-
-const playAccount = document.querySelector<HTMLSelectElement>("#play-account")!;
-const playInstance = document.querySelector<HTMLSelectElement>("#play-instance")!;
 const playBtn = document.querySelector<HTMLButtonElement>("#play-btn")!;
 const playStatus = document.querySelector<HTMLDivElement>("#play-status")!;
 const launchBar = document.querySelector<HTMLProgressElement>("#launch-progress")!;

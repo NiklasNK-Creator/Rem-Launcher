@@ -55,6 +55,13 @@ fn save_all(app: &AppHandle, accounts: &[Account]) -> Result<(), String> {
     std::fs::write(path, raw).map_err(|e| e.to_string())
 }
 
+fn epoch_now() -> String {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => d.as_secs().to_string(),
+        Err(_) => "0".into(),
+    }
+}
+
 #[tauri::command]
 pub fn list_accounts(app: AppHandle) -> Vec<Account> {
     load_all(&app)
@@ -65,6 +72,18 @@ pub fn get_account_token(id: String) -> Option<String> {
     keyring::Entry::new(KEYCHAIN_SERVICE, &token_key(&id))
         .ok()
         .and_then(|e| e.get_password().ok())
+}
+
+#[tauri::command]
+pub fn touch_account(app: AppHandle, id: String) -> Vec<Account> {
+    let mut all = load_all(&app);
+    for a in &mut all {
+        if a.id == id {
+            a.last_used = Some(epoch_now());
+        }
+    }
+    let _ = save_all(&app, &all);
+    all
 }
 
 #[tauri::command]

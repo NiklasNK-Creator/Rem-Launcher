@@ -7,6 +7,7 @@ export type Account = {
   mc_name: string;
   uuid: string;
   ms_refresh?: unknown;
+  last_used?: string | null;
 };
 
 // Deterministic offline-mode UUID for a name (vanilla uses MD5 of
