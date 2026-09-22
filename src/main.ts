@@ -45,14 +45,31 @@ function renderInstances(list: Instance[]) {
     div.className = "card";
     const label = document.createElement("span");
     label.textContent = `${i.name} — ${i.game_version} (${i.loader})`;
-    const mods = document.createElement("button");
-    mods.textContent = "Mods";
-    mods.onclick = async () => {
+    const modsBtn = document.createElement("button");
+    modsBtn.textContent = "Mods";
+    const modList = document.createElement("div");
+    modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
+      modList.innerHTML = "";
+      for (const f of files) {
+        const row = document.createElement("div");
+        const name = document.createElement("span");
+        name.textContent = f;
+        const rm = document.createElement("button");
+        rm.textContent = "Remove";
+        rm.onclick = async () => {
+          const rest = await invoke<string[]>("remove_mod", { instance: i.name, fileName: f });
+          row.remove();
+          label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${rest.length} mods`;
+        };
+        row.append(name, rm);
+        modList.appendChild(row);
+      }
       label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${files.length} mods`;
     };
-    div.append(label, mods);
+    div.append(label, modsBtn);
     instEl.appendChild(div);
+    instEl.appendChild(modList);
   }
   if (list.length === 0) instEl.textContent = "No instances yet.";
 }

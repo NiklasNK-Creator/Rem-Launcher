@@ -112,3 +112,15 @@ pub fn list_instance_mods(app: AppHandle, instance: String) -> Result<Vec<String
     out.sort();
     Ok(out)
 }
+
+#[tauri::command]
+pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result<Vec<String>, String> {
+    if file_name.contains(['/', '\\']) || file_name.starts_with('.') || file_name.is_empty() {
+        return Err("invalid file name".into());
+    }
+    let target = data_root(&app)?.join(&instance).join("mods").join(&file_name);
+    if target.exists() {
+        std::fs::remove_file(&target).map_err(|e| e.to_string())?;
+    }
+    list_instance_mods(app, instance)
+}
