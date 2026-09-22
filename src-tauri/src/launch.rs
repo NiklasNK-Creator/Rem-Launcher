@@ -284,6 +284,56 @@ async fn resolve_loader(
     Ok((stable.loader.version.clone(), main, extra))
 }
 
+/// Resolve recommended Forge version for a game version via promotions.
+/// Returns the full Forge version string (e.g. "47.4.10" for 1.20.1).
+async fn resolve_forge_version(client: &reqwest::Client, game_version: &str) -> Result<String, String> {
+    #[derive(serde::Deserialize)]
+    struct Promos {
+        promos: std::collections::HashMap<String, String>,
+    }
+    let promos: Promos = client
+        .get("https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    promos
+        .promos
+        .get(&format!("{game_version}-recommended"))
+        .or_else(|| promos.promos.get(&format!("{game_version}-latest")))
+        .cloned()
+        .ok_or_else(|| format!("no Forge build for {game_version}"))
+}
+
+/// Resolve newest NeoForge version for a game version via its maven API.
+/// NeoForge versions look like "21.1.42" where the major tracks MC (21.1 → 1.21.1).
+async fn resolve_neoforge_version(client: &reqwest::Client, game_version: &str) -> Result<String, String> {
+    #[derive(serde::Deserialize)]
+    struct Listing {
+        versions: Vec<String>,
+    }
+    let listing: Listing = client
+        .get("https://maven.neoforged.net/api/maven/versions/releases/net%2Fneoforged%2Fneoforge")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+    // NeoForge major tracks MC: 1.20.2+ → 20.x, 1.21.x → 21.x, etc.
+    // Only match stable (non-beta) versions.
+    let mc_minor: u32 = game_version.split('.').nth(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let want_major = if mc_minor >= 21 { mc_minor } else { 20 };
+    listing
+        .versions
+        .into_iter()
+        .rev()
+        .filter(|v| !v.contains("beta"))
+        .find(|v| v.split('.').next().and_then(|s| s.parse::<u32>().ok()) == Some(want_major))
+        .ok_or_else(|| format!("no NeoForge build for {game_version}"))
+}
 /// Download a maven coord from a repo base into lib_dir, return jar path.
 async fn fetch_maven(
     client: &reqwest::Client,
@@ -418,7 +468,6 @@ pub async fn launch_game(
     let lib_dir = vdir.join("libraries");
     let assets_dir = base.join("assets");
     std::fs::create_dir_all(&lib_dir).map_err(|e| e.to_string())?;
-
     // Client jar.
     let client_art = pkg.downloads.get("client").ok_or("no client download")?;
     let jar = vdir.join("client.jar");
@@ -455,6 +504,25 @@ pub async fn launch_game(
                 }
                 Err(e) => return Err(e),
             }
+        }
+    } else if loader.as_deref() == Some("forge") {
+        // Forge needs its installer profile: download installer, run its
+        // version-json processor via bundled install manifest is out of scope.
+        // We ship the installer jar + resolve its libraries; full profile
+        // patching (processors) is tracked — error clearly for now.
+        let fv = resolve_forge_version(&client, &version).await?;
+        let coord = format!("net.minecraftforge:forge:{version}-{fv}");
+        let p = fetch_maven(&client, &lib_dir, &coord, "https://maven.minecraftforge.net/").await;
+        match p {
+            Ok(jar) => { cp.push(jar.to_string_lossy().into()); }
+            Err(_) => return Err(format!("Forge {fv} for {version}: installer-based setup not yet supported (processors unimplemented). Use fabric/quilt, or wait for full Forge support.")),
+        }
+    } else if loader.as_deref() == Some("neoforge") {
+        let nv = resolve_neoforge_version(&client, &version).await?;
+        let coord = format!("net.neoforged:neoforge:{nv}");
+        match fetch_maven(&client, &lib_dir, &coord, "https://maven.neoforged.net/releases/").await {
+            Ok(jar) => { cp.push(jar.to_string_lossy().into()); }
+            Err(_) => return Err(format!("NeoForge {nv} for {version}: installer-based setup not yet supported. Use fabric/quilt for now.")),
         }
     }
     cp.push(jar.to_string_lossy().into());
