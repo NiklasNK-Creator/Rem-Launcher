@@ -68,8 +68,12 @@ export async function addMicrosoftAccount(
   const flow = new Authflow(`ms:${Date.now()}`, undefined, {}, (code: { user_code: string; verification_uri: string }) =>
     onCode(code.user_code, code.verification_uri),
   );
-  const { token, profile } = await flow.getMinecraftJavaToken({ fetchProfile: true });
-  const p = profile as { id: string; name: string };
+  const { token, entitlements, profile } = await flow.getMinecraftJavaToken({ fetchEntitlements: true, fetchProfile: true });
+  const p = profile as { id: string; name: string } | undefined;
+  if (!p?.id || !p?.name) throw new Error("no Minecraft Java profile on this account (game not owned?)");
+  const items = (entitlements as { items?: { name?: string }[] } | undefined)?.items ?? [];
+  const owned = items.some((e) => e?.name === "game_minecraft" || e?.name === "product_minecraft");
+  if (items.length > 0 && !owned) throw new Error("account has no Minecraft Java entitlement");
   return invoke("add_account", {
     account: {
       id: `microsoft:${p.id}`,
