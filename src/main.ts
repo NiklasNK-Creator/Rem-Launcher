@@ -69,4 +69,46 @@ go.onclick = async () => {
   }
 };
 
+type Instance = { name: string; game_version: string; loader: string };
+
+const instEl = document.querySelector<HTMLDivElement>("#instances")!;
+const instName = document.querySelector<HTMLInputElement>("#inst-name")!;
+const instVersion = document.querySelector<HTMLInputElement>("#inst-version")!;
+const instLoader = document.querySelector<HTMLInputElement>("#inst-loader")!;
+const createInst = document.querySelector<HTMLButtonElement>("#create-inst")!;
+
+function renderInstances(list: Instance[]) {
+  instEl.innerHTML = "";
+  for (const i of list) {
+    const div = document.createElement("div");
+    div.className = "card";
+    const label = document.createElement("span");
+    label.textContent = `${i.name} — ${i.game_version} (${i.loader})`;
+    const mods = document.createElement("button");
+    mods.textContent = "Mods";
+    mods.onclick = async () => {
+      const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
+      label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${files.length} mods`;
+    };
+    div.append(label, mods);
+    instEl.appendChild(div);
+  }
+  if (list.length === 0) instEl.textContent = "No instances yet.";
+}
+
+createInst.onclick = async () => {
+  try {
+    renderInstances(
+      await invoke<Instance[]>("create_instance", {
+        name: instName.value.trim(),
+        gameVersion: instVersion.value.trim(),
+        loader: instLoader.value.trim() || "fabric",
+      }),
+    );
+  } catch (e) {
+    instEl.textContent = `Error: ${e}`;
+  }
+};
+
 invoke<Account[]>("list_accounts").then(renderAccounts);
+invoke<Instance[]>("list_instances").then(renderInstances);
