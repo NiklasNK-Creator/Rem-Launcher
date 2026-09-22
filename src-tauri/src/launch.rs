@@ -15,6 +15,7 @@ pub struct PreparedClient {
 pub struct JavaInfo {
     pub path: String,
     pub version_line: String,
+    pub major: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,9 +35,17 @@ struct Pkg {
     minecraft_arguments: Option<String>,
     #[serde(default)]
     arguments: Option<serde_json::Value>,
+    #[serde(default)]
+    java_version: Option<JavaVersionReq>,
     #[serde(rename = "minimumLauncherVersion")]
     #[allow(dead_code)]
     minimum_launcher_version: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct JavaVersionReq {
+    #[serde(default)]
+    major: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -386,6 +395,18 @@ pub async fn launch_game(
         .await
         .map_err(|e| e.to_string())?;
 
+    // Fail fast when the runtime is too old for this version.
+    if let Some(req) = &pkg.java_version {
+        if req.major > 0 {
+            let have = detect_java().map(|j| j.major).unwrap_or(0);
+            if have < req.major {
+                return Err(format!(
+                    "version {version} needs Java {}+, found Java {have}. Install a newer JDK and retry.",
+                    req.major
+                ));
+            }
+        }
+    }
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let vdir = base.join("versions").join(&version);
     std::fs::create_dir_all(&vdir).map_err(|e| e.to_string())?;
@@ -577,9 +598,31 @@ pub fn detect_java() -> Result<JavaInfo, String> {
         if let Ok(out) = std::process::Command::new(candidate).arg("-version").output() {
             let line = String::from_utf8_lossy(&out.stderr).lines().next().unwrap_or("").to_string();
             if !line.is_empty() {
-                return Ok(JavaInfo { path: candidate.into(), version_line: line });
+                return Ok(JavaInfo { path: candidate.into(), version_line: line.clone(), major: parse_java_major(&line) });
             }
         }
     }
     Err("no Java runtime found on PATH".into())
+}
+
+/// Parse `openjdk version "25.0.4"` / `java version "1.8.0_392"` → 25 / 8.
+fn parse_java_major(line: &str) -> u32 {
+    let v = line.split('"').nth(1).unwrap_or("");
+    let mut parts = v.split('.');
+    match parts.next().unwrap_or("") {
+        "1" => parts.next().and_then(|s| s.parse().ok()).unwrap_or(0),
+        major => major.parse().unwrap_or(0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn parses_java_majors() {
+        assert_eq!(parse_java_major("openjdk version \"25.0.4\" 2026-07-21"), 25);
+        assert_eq!(parse_java_major("openjdk version \"17.0.9\" 2023-10-17"), 17);
+        assert_eq!(parse_java_major("java version \"1.8.0_392\""), 8);
+        assert_eq!(parse_java_major("garbage"), 0);
+    }
 }
