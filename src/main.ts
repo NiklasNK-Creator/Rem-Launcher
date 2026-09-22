@@ -51,16 +51,16 @@ function renderInstances(list: Instance[]) {
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
       const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
-      const versions = new Map<string, { latest: string; installed: string }>();
+      const updates: Record<string, { latest: string; installed: string; projectId: string }> = {};
       for (const m of locked) {
         try {
-          const vs = await invoke<{ version_number: string }[]>("project_versions", {
+          const vs = await invoke<ProjectVersion[]>("project_versions", {
             projectId: m.project_id,
             gameVersions: [i.game_version],
             loaders: [i.loader],
           });
           if (vs[0] && vs[0].version_number !== m.version_number) {
-            versions.set(m.file_name, { latest: vs[0].version_number, installed: m.version_number });
+            updates[m.file_name] = { latest: vs[0].version_number, installed: m.version_number, projectId: m.project_id };
           }
         } catch {
           // offline or untracked: no badge
@@ -70,8 +70,48 @@ function renderInstances(list: Instance[]) {
       for (const f of files) {
         const row = document.createElement("div");
         const name = document.createElement("span");
-        const upd = versions.get(f);
+        const upd = updates[f];
         name.textContent = upd ? `${f} — update: ${upd.installed} → ${upd.latest}` : f;
+        row.append(name);
+        let updateBtn: HTMLButtonElement | null = null;
+        if (upd) {
+          updateBtn = document.createElement("button");
+          updateBtn.textContent = "Update";
+          updateBtn.onclick = async () => {
+            const btn = updateBtn!;
+            btn.disabled = true;
+            btn.textContent = "Updating…";
+            try {
+              const vs = await invoke<ProjectVersion[]>("project_versions", {
+                projectId: upd.projectId,
+                gameVersions: [i.game_version],
+                loaders: [i.loader],
+              });
+              const v = vs[0];
+              const file = v?.files.find((x) => x.primary) ?? v?.files[0];
+              if (!v || !file) throw new Error("no compatible file");
+              if (file.name !== f) {
+                await invoke<string[]>("remove_mod", { instance: i.name, fileName: f });
+              }
+              await invoke("install_mod", {
+                instance: i.name,
+                fileName: file.name,
+                url: file.url,
+                sha512: file.sha512,
+                projectId: upd.projectId,
+                versionNumber: v.version_number,
+              });
+              name.textContent = file.name;
+              btn.remove();
+              updateBtn = null;
+            } catch (e) {
+              btn.disabled = false;
+              btn.textContent = "Update";
+              name.textContent = `${f} — update failed: ${e}`;
+            }
+          };
+          row.append(updateBtn);
+        }
         const rm = document.createElement("button");
         rm.textContent = "Remove";
         rm.onclick = async () => {
@@ -79,7 +119,7 @@ function renderInstances(list: Instance[]) {
           row.remove();
           label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${rest.length} mods`;
         };
-        row.append(name, rm);
+        row.append(rm);
         modList.appendChild(row);
       }
       label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${files.length} mods`;
