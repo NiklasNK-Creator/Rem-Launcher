@@ -350,10 +350,22 @@ importMrpack.onclick = async () => {
   }
 };
 
-invoke<Account[]>("list_accounts").then((a) => {
-  renderAccounts(a);
-  refreshPlaySelectors();
-});
+const exportPath = document.querySelector<HTMLInputElement>("#export-path")!;
+const exportMrpack = document.querySelector<HTMLButtonElement>("#export-mrpack")!;
+exportMrpack.onclick = async () => {
+  const out = exportPath.value.trim();
+  const inst = (document.querySelector<HTMLSelectElement>("#play-instance")!);
+  if (!out || !inst.value) {
+    instEl.textContent = "Pick an instance in Play and an export path first.";
+    return;
+  }
+  try {
+    const r = await invoke<{ path: string; files: number }>("export_mrpack", { instance: inst.value, outPath: out });
+    instEl.textContent = `Exported ${r.files} entries to ${r.path}.`;
+  } catch (e) {
+    instEl.textContent = `Export failed: ${e}`;
+  }
+};
 invoke<Instance[]>("list_instances").then((l) => {
   renderInstances(l);
   refreshPlaySelectors();

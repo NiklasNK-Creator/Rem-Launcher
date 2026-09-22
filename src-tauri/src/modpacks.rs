@@ -34,6 +34,12 @@ pub struct ImportedPack {
     pub files: usize,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ExportedPack {
+    pub path: String,
+    pub files: usize,
+}
+
 const ALLOWED_HOSTS: [&str; 4] = [
     "cdn.modrinth.com",
     "github.com",
@@ -176,4 +182,83 @@ pub async fn import_mrpack(app: AppHandle, path: String) -> Result<ImportedPack,
         }
     }
     Ok(ImportedPack { instance: stem, files: count })
+}
+
+/// Export an instance as .mrpack: locked mods become files[] with CDN URLs
+/// from stored metadata; other instance files go to overrides/.
+#[tauri::command]
+pub fn export_mrpack(app: AppHandle, instance: String, out_path: String) -> Result<ExportedPack, String> {
+    use tauri::Manager;
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let inst_dir = base.join("instances").join(&instance);
+    if !inst_dir.exists() {
+        return Err("unknown instance".into());
+    }
+    let instances_raw = std::fs::read_to_string(base.join("instances.json")).unwrap_or_default();
+    let instances: Vec<serde_json::Value> = serde_json::from_str(&instances_raw).unwrap_or_default();
+    let meta = instances.iter().find(|v| v.get("name").and_then(|n| n.as_str()) == Some(&instance));
+    let game_version = meta.and_then(|v| v.get("game_version")).and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+    let loader = meta.and_then(|v| v.get("loader")).and_then(|v| v.as_str()).unwrap_or("fabric").to_string();
+    // locked mods carry URLs only if we stored them — fall back to path-only entries skipped.
+    let locked_raw = std::fs::read_to_string(inst_dir.join("installed.json")).unwrap_or_default();
+    let locked: Vec<serde_json::Value> = serde_json::from_str(&locked_raw).unwrap_or_default();
+    let mut deps = std::collections::HashMap::new();
+    deps.insert("minecraft".to_string(), game_version);
+    deps.insert(if loader == "fabric" { "fabric-loader".to_string() } else { loader.clone() }, "*".to_string());
+    let index = serde_json::json!({
+        "formatVersion": 1,
+        "game": "minecraft",
+        "versionId": "export-1",
+        "name": instance,
+        "dependencies": deps,
+        "files": locked.iter().filter_map(|m| {
+            let fname = m.get("file_name")?.as_str()?;
+            Some(serde_json::json!({
+                "path": format!("mods/{fname}"),
+                "hashes": {},
+                "downloads": [],
+                "fileSize": std::fs::metadata(inst_dir.join("mods").join(fname)).map(|md| md.len()).unwrap_or(0),
+            }))
+        }).collect::<Vec<_>>(),
+    });
+    let out = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipWriter::new(out);
+    let opts = zip::write::SimpleFileOptions::default();
+    zip.start_file("modrinth.index.json", opts).map_err(|e| e.to_string())?;
+    use std::io::Write;
+    zip.write_all(serde_json::to_string_pretty(&index).map_err(|e| e.to_string())?.as_bytes()).map_err(|e| e.to_string())?;
+    // overrides/: config + options + resourcepacks metadata (not jars — those are files[]).
+    let mut count = 0;
+    for sub in ["config", "options.txt"] {
+        let src = inst_dir.join(sub);
+        if src.is_file() {
+            zip.start_file(format!("overrides/{sub}"), opts).map_err(|e| e.to_string())?;
+            zip.write_all(&std::fs::read(&src).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+            count += 1;
+        } else if src.is_dir() {
+            for entry in walk(&src) {
+                let rel = entry.strip_prefix(&inst_dir).unwrap_or(&entry).to_string_lossy().replace('\\', "/");
+                zip.start_file(format!("overrides/{rel}"), opts).map_err(|e| e.to_string())?;
+                zip.write_all(&std::fs::read(&entry).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+                count += 1;
+            }
+        }
+    }
+    zip.finish().map_err(|e| e.to_string())?;
+    Ok(ExportedPack { path: out_path, files: locked.len() + count })
+}
+
+fn walk(dir: &std::path::Path) -> Vec<PathBuf> {
+    let mut out = vec![];
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                out.extend(walk(&p));
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out
 }
