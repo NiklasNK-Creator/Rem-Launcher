@@ -142,5 +142,48 @@ createInst.onclick = async () => {
   }
 };
 
-invoke<Account[]>("list_accounts").then(renderAccounts);
-invoke<Instance[]>("list_instances").then(renderInstances);
+invoke<Account[]>("list_accounts").then((a) => {
+  renderAccounts(a);
+  refreshPlaySelectors();
+});
+invoke<Instance[]>("list_instances").then((l) => {
+  renderInstances(l);
+  refreshPlaySelectors();
+});
+
+const playAccount = document.querySelector<HTMLSelectElement>("#play-account")!;
+const playInstance = document.querySelector<HTMLSelectElement>("#play-instance")!;
+const playBtn = document.querySelector<HTMLButtonElement>("#play-btn")!;
+const playStatus = document.querySelector<HTMLDivElement>("#play-status")!;
+
+async function refreshPlaySelectors() {
+  const [accounts, instances] = await Promise.all([
+    invoke<Account[]>("list_accounts"),
+    invoke<Instance[]>("list_instances"),
+  ]);
+  playAccount.innerHTML = accounts.map((a) => `<option value="${a.id}">${a.mc_name} [${a.kind}]</option>`).join("");
+  playInstance.innerHTML = instances.map((i) => `<option value="${i.game_version}">${i.name} — ${i.game_version}</option>`).join("");
+}
+
+playBtn.onclick = async () => {
+  const accountId = playAccount.value;
+  const version = playInstance.value;
+  if (!accountId || !version) {
+    playStatus.textContent = "Pick an account and an instance first.";
+    return;
+  }
+  const accounts = await invoke<Account[]>("list_accounts");
+  const acc = accounts.find((a) => a.id === accountId)!;
+  playStatus.textContent = `Launching ${version} as ${acc.mc_name}… (libraries + assets download first)`;
+  try {
+    const r = await invoke<{ pid: number }>("launch_game", {
+      version,
+      accountId: acc.id,
+      accountName: acc.mc_name,
+      accountUuid: acc.uuid,
+    });
+    playStatus.textContent = `Game started (pid ${r.pid}).`;
+  } catch (e) {
+    playStatus.textContent = `Launch failed: ${e}`;
+  }
+};
