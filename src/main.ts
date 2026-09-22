@@ -407,8 +407,9 @@ async function refreshPlaySelectors(preferAccount?: string) {
   if (preferAccount && sorted.some((a) => a.id === preferAccount)) playAccount.value = preferAccount;
   else if (sorted[0]) playAccount.value = sorted[0].id;
   playInstance.innerHTML = instances.map((i) => `<option value="${i.name}">${i.name} — ${i.game_version} (${i.loader})</option>`).join("");
+  const lastInst = localStorage.getItem("rem-last-instance");
+  if (lastInst && instances.some((i) => i.name === lastInst)) playInstance.value = lastInst;
 }
-
 invoke<Account[]>("list_accounts").then((a) => {
   renderAccounts(a);
   refreshPlaySelectors();
@@ -477,7 +478,15 @@ playBtn.onclick = async () => {
       instance: inst.name,
       loader: inst.loader,
     });
+    playStatus.textContent = `Game started (pid ${r.pid}).`;
     launchBar.hidden = true;
+    try {
+      await invoke("touch_account", { id: acc.id });
+      localStorage.setItem("rem-last-instance", inst.name);
+      renderAccounts(await invoke<Account[]>("list_accounts"));
+    } catch {
+      // usage memory is best-effort
+    }
   } catch (e) {
     playStatus.textContent = `Launch failed: ${e}`;
     launchBar.hidden = true;
