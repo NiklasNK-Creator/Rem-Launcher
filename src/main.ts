@@ -51,7 +51,19 @@ function renderInstances(list: Instance[]) {
     label.textContent = `${i.name} — ${i.game_version} (${i.loader})`;
     const modsBtn = document.createElement("button");
     modsBtn.textContent = "Mods";
-    const modList = document.createElement("div");
+    const verifyBtn = document.createElement("button");
+    verifyBtn.textContent = "Verify";
+    verifyBtn.onclick = async () => {
+      const r = await invoke<{ missing_files: string[]; untracked_files: string[]; ok_tracked: number }>("verify_instance", { instance: i.name });
+      label.textContent = `${i.name}: ${r.ok_tracked} ok, ${r.missing_files.length} missing, ${r.untracked_files.length} untracked`;
+    };
+    const repairBtn = document.createElement("button");
+    repairBtn.textContent = "Repair";
+    repairBtn.onclick = async () => {
+      const r = await invoke<{ missing_files: string[]; untracked_files: string[]; ok_tracked: number }>("repair_instance", { instance: i.name });
+      label.textContent = `${i.name}: repaired — ${r.ok_tracked} ok, ${r.untracked_files.length} untracked`;
+    };
+    div.append(label, modsBtn, verifyBtn, repairBtn);
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
       const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
@@ -128,7 +140,6 @@ function renderInstances(list: Instance[]) {
       }
       label.textContent = `${i.name} — ${i.game_version} (${i.loader}): ${files.length} mods`;
     };
-    div.append(label, modsBtn);
     instEl.appendChild(div);
     instEl.appendChild(modList);
   }

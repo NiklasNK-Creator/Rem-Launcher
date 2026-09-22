@@ -168,3 +168,45 @@ pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result
 pub fn locked_mods(app: AppHandle, instance: String) -> Vec<InstalledMod> {
     load_locked(&app, &instance)
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyReport {
+    pub missing_files: Vec<String>,
+    pub untracked_files: Vec<String>,
+    pub ok_tracked: usize,
+}
+
+/// Offline check: compare lockfile against files actually on disk.
+#[tauri::command]
+pub fn verify_instance(app: AppHandle, instance: String) -> Result<VerifyReport, String> {
+    let locked = load_locked(&app, &instance);
+    let on_disk = list_instance_mods(app.clone(), instance.clone())?;
+    let mut missing = vec![];
+    let mut ok = 0;
+    for m in &locked {
+        if on_disk.contains(&m.file_name) {
+            ok += 1;
+        } else {
+            missing.push(m.file_name.clone());
+        }
+    }
+    let tracked: std::collections::HashSet<&str> =
+        locked.iter().map(|m| m.file_name.as_str()).collect();
+    let untracked: Vec<String> = on_disk
+        .into_iter()
+        .filter(|f| !tracked.contains(f.as_str()))
+        .collect();
+    Ok(VerifyReport { missing_files: missing, untracked_files: untracked, ok_tracked: ok })
+}
+
+/// Repair: drop lockfile entries whose files are gone (untracked files stay).
+#[tauri::command]
+pub fn repair_instance(app: AppHandle, instance: String) -> Result<VerifyReport, String> {
+    let report = verify_instance(app.clone(), instance.clone())?;
+    if !report.missing_files.is_empty() {
+        let mut locked = load_locked(&app, &instance);
+        locked.retain(|m| !report.missing_files.contains(&m.file_name));
+        save_locked(&app, &instance, &locked)?;
+    }
+    verify_instance(app, instance)
+}
