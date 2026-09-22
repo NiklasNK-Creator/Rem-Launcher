@@ -240,11 +240,17 @@ pub fn open_instance_folder(app: AppHandle, name: String) -> Result<(), String> 
     }
     Ok(())
 }
+fn download_url_allowed(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else { return false };
+    let host = rest.split('/').next().unwrap_or("");
+    ["cdn.modrinth.com", "github.com", "raw.githubusercontent.com", "gitlab.com"]
+        .iter()
+        .any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
+}
 
 fn valid_file_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('.') && !name.contains(['/', '\\'])
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +290,9 @@ pub async fn install_mod(
     let all = load_all(&app);
     if !all.iter().any(|i| i.name == instance) {
         return Err("unknown instance".into());
+    }
+    if !download_url_allowed(&url) {
+        return Err("download URL must use HTTPS and an approved content host".into());
     }
     let dest = data_root(&app)?.join(&instance).join(subdir).join(&file_name);
     let bytes = reqwest::get(&url).await.map_err(|e| e.to_string())?
