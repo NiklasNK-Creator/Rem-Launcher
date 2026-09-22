@@ -484,7 +484,7 @@ pub async fn launch_game(
     let assets_id = fetch_assets(&client, &pkg, &assets_dir).await?;
     step("assets", 85);
     let game_dir = match &instance {
-        Some(name) if !name.is_empty() && !name.contains(['/', '\\', '.']) => base.join("instances").join(name),
+        Some(name) if crate::instances::valid_instance_name(name) => base.join("instances").join(name.trim()),
         _ => base.join("instances").join("__vanilla__").join(&version),
     };
     std::fs::create_dir_all(game_dir.join("mods")).map_err(|e| e.to_string())?;
@@ -640,7 +640,7 @@ pub fn read_log_tail(app: AppHandle, instance: Option<String>, lines: Option<usi
     use tauri::Manager;
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let game_dir = match &instance {
-        Some(name) if !name.is_empty() && !name.contains(['/', '\\', '.']) => base.join("instances").join(name),
+        Some(name) if crate::instances::valid_instance_name(name) => base.join("instances").join(name.trim()),
         _ => return Err("pick an instance first".into()),
     };
     let raw = std::fs::read_to_string(game_dir.join("rem-launcher.log")).unwrap_or_default();

@@ -35,6 +35,19 @@ fn data_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("instances"))
 }
 
+/// Shared name guard: instance names become directory names — reject
+/// traversal, hidden, absolute, and Windows-special characters in one place.
+/// Read docs/security.md before loosening this.
+pub fn valid_instance_name(name: &str) -> bool {
+    let n = name.trim();
+    !n.is_empty()
+        && n.len() <= 64
+        && !n.starts_with('.')
+        && !n.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|'])
+        && n != ".."
+        && n != "."
+}
+
 fn load_all(app: &AppHandle) -> Vec<Instance> {
     let path = match store_path(app) {
         Ok(p) => p,
@@ -52,10 +65,10 @@ fn save_all(app: &AppHandle, list: &[Instance]) -> Result<(), String> {
 /// Delete an instance: remove store entry + its on-disk dir.
 #[tauri::command]
 pub fn delete_instance(app: AppHandle, name: String) -> Result<Vec<Instance>, String> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() || trimmed.contains(['/', '\\', '.', ':']) {
+    if !valid_instance_name(&name) {
         return Err("invalid instance name".into());
     }
+    let trimmed = name.trim();
     let mut all = load_all(&app);
     all.retain(|i| i.name != trimmed);
     save_all(&app, &all)?;
@@ -96,13 +109,10 @@ pub fn create_instance(
     game_version: String,
     loader: String,
 ) -> Result<Vec<Instance>, String> {
+    if !valid_instance_name(&name) {
+        return Err("instance name must be 1-64 chars without / \\ : * ? \" < > | or leading dots".into());
+    }
     let name = name.trim();
-    if name.is_empty() || name.len() > 64 {
-        return Err("instance name must be 1-64 chars".into());
-    }
-    if name.contains(['/', '\\', '.', ':']) {
-        return Err("instance name contains invalid characters".into());
-    }
     let mut all = load_all(&app);
     if all.iter().any(|i| i.name == name) {
         return Err("instance already exists".into());
@@ -118,6 +128,23 @@ pub fn create_instance(
 fn valid_file_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('.') && !name.contains(['/', '\\'])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn guards_traversal_and_specials() {
+        assert!(valid_instance_name("survival"));
+        assert!(!valid_instance_name(""));
+        assert!(!valid_instance_name("../evil"));
+        assert!(!valid_instance_name("a/b"));
+        assert!(!valid_instance_name(".."));
+        assert!(!valid_instance_name(".hidden"));
+        assert!(!valid_instance_name("con:drive"));
+        assert!(!valid_instance_name("a*b"));
+    }
+}
+
 #[tauri::command]
 pub async fn install_mod(
     app: AppHandle,
