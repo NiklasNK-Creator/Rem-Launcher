@@ -263,16 +263,32 @@ pub async fn install_mod(
     Ok(dest.to_string_lossy().into())
 }
 
+fn content_dir(content_type: Option<&str>) -> &'static str {
+    match content_type {
+        Some("resourcepack") => "resourcepacks",
+        Some("shader") => "shaderpacks",
+        Some("datapack") => "datapacks",
+        _ => "mods",
+    }
+}
+
 #[tauri::command]
 pub fn list_instance_mods(app: AppHandle, instance: String) -> Result<Vec<String>, String> {
-    let dir = data_root(&app)?.join(&instance).join("mods");
+    let root = data_root(&app)?.join(&instance);
+    let locked = load_locked(&app, &instance);
     let mut out = vec![];
-    if let Ok(rd) = std::fs::read_dir(dir) {
-        for e in rd.flatten() {
-            if let Some(n) = e.file_name().to_str() {
-                out.push(n.to_string());
+    for subdir in ["mods", "resourcepacks", "shaderpacks", "datapacks"] {
+        if let Ok(rd) = std::fs::read_dir(root.join(subdir)) {
+            for e in rd.flatten() {
+                if let Some(n) = e.file_name().to_str() {
+                    out.push(format!("{subdir}/{n}"));
+                }
             }
         }
+    }
+    // Preserve legacy UI behavior while exposing all content directories.
+    if out.is_empty() && locked.is_empty() {
+        return Ok(vec![]);
     }
     out.sort();
     Ok(out)
@@ -280,15 +296,16 @@ pub fn list_instance_mods(app: AppHandle, instance: String) -> Result<Vec<String
 
 #[tauri::command]
 pub fn remove_mod(app: AppHandle, instance: String, file_name: String) -> Result<Vec<String>, String> {
-    if !valid_file_name(&file_name) {
-        return Err("invalid file name".into());
+    let (subdir, leaf) = file_name.split_once('/').unwrap_or(("mods", file_name.as_str()));
+    if !["mods", "resourcepacks", "shaderpacks", "datapacks"].contains(&subdir) || !valid_file_name(leaf) {
+        return Err("invalid content file name".into());
     }
-    let target = data_root(&app)?.join(&instance).join("mods").join(&file_name);
+    let target = data_root(&app)?.join(&instance).join(content_dir(Some(subdir))).join(leaf);
     if target.exists() {
         std::fs::remove_file(&target).map_err(|e| e.to_string())?;
     }
     let mut locked = load_locked(&app, &instance);
-    locked.retain(|m| m.file_name != file_name);
+    locked.retain(|m| !(m.file_name == leaf && content_dir(m.content_type.as_deref()) == subdir));
     let _ = save_locked(&app, &instance, &locked);
     list_instance_mods(app, instance)
 }
@@ -312,18 +329,20 @@ pub fn verify_instance(app: AppHandle, instance: String) -> Result<VerifyReport,
     let on_disk = list_instance_mods(app.clone(), instance.clone())?;
     let mut missing = vec![];
     let mut ok = 0;
+    let mut tracked_paths = std::collections::HashSet::new();
     for m in &locked {
-        if on_disk.contains(&m.file_name) {
+        let full_rel = format!("{}/{}", content_dir(m.content_type.as_deref()), m.file_name);
+        if on_disk.contains(&full_rel) || on_disk.contains(&m.file_name) {
             ok += 1;
+            tracked_paths.insert(full_rel);
+            tracked_paths.insert(m.file_name.clone());
         } else {
             missing.push(m.file_name.clone());
         }
     }
-    let tracked: std::collections::HashSet<&str> =
-        locked.iter().map(|m| m.file_name.as_str()).collect();
     let untracked: Vec<String> = on_disk
         .into_iter()
-        .filter(|f| !tracked.contains(f.as_str()))
+        .filter(|f| !tracked_paths.contains(f))
         .collect();
     Ok(VerifyReport { missing_files: missing, untracked_files: untracked, ok_tracked: ok })
 }
