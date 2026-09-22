@@ -1,7 +1,7 @@
 // Account store: multiple Microsoft + offline ("cracked") profiles.
-// Read docs/auth.md before changing. Secrets note: Microsoft refresh tokens
-// arrive from prismarine-auth (frontend) and are persisted here as JSON for
-// now; OS-keychain encryption is tracked as a follow-up in docs/auth.md.
+// Read docs/auth.md before changing. Microsoft tokens live in the OS
+// keychain (Credential Manager / Secret Service / Keychain) — accounts.json
+// NEVER contains secrets.
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
@@ -12,7 +12,7 @@ pub struct Account {
     pub kind: AccountKind,
     pub mc_name: String,
     pub uuid: String,
-    /// Microsoft refresh material from prismarine-auth (opaque JSON). None for offline.
+    /// Transient only: carried in on add, stored to keychain, never persisted.
     pub ms_refresh: Option<serde_json::Value>,
     pub last_used: Option<String>,
 }
@@ -22,6 +22,12 @@ pub struct Account {
 pub enum AccountKind {
     Microsoft,
     Offline,
+}
+
+const KEYCHAIN_SERVICE: &str = "dev.remlauncher.app";
+
+fn token_key(id: &str) -> String {
+    format!("ms-token:{id}")
 }
 
 fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -41,7 +47,11 @@ fn load_all(app: &AppHandle) -> Vec<Account> {
 
 fn save_all(app: &AppHandle, accounts: &[Account]) -> Result<(), String> {
     let path = store_path(app)?;
-    let raw = serde_json::to_string_pretty(accounts).map_err(|e| e.to_string())?;
+    let scrubbed: Vec<Account> = accounts
+        .iter()
+        .map(|a| Account { ms_refresh: None, ..a.clone() })
+        .collect();
+    let raw = serde_json::to_string_pretty(&scrubbed).map_err(|e| e.to_string())?;
     std::fs::write(path, raw).map_err(|e| e.to_string())
 }
 
@@ -51,7 +61,20 @@ pub fn list_accounts(app: AppHandle) -> Vec<Account> {
 }
 
 #[tauri::command]
+pub fn get_account_token(id: String) -> Option<String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, &token_key(&id))
+        .ok()
+        .and_then(|e| e.get_password().ok())
+}
+
+#[tauri::command]
 pub fn add_account(app: AppHandle, account: Account) -> Result<Vec<Account>, String> {
+    if let Some(secret) = &account.ms_refresh {
+        let raw = serde_json::to_string(secret).map_err(|e| e.to_string())?;
+        let entry = keyring::Entry::new(KEYCHAIN_SERVICE, &token_key(&account.id))
+            .map_err(|e| e.to_string())?;
+        entry.set_password(&raw).map_err(|e| e.to_string())?;
+    }
     let mut all = load_all(&app);
     all.retain(|a| a.id != account.id);
     all.push(account);
@@ -61,6 +84,9 @@ pub fn add_account(app: AppHandle, account: Account) -> Result<Vec<Account>, Str
 
 #[tauri::command]
 pub fn remove_account(app: AppHandle, id: String) -> Result<Vec<Account>, String> {
+    if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, &token_key(&id)) {
+        let _ = entry.delete_credential();
+    }
     let mut all = load_all(&app);
     all.retain(|a| a.id != id);
     save_all(&app, &all)?;

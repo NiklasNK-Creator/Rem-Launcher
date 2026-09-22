@@ -1923,6 +1923,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "keyring"
+version = "3.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
+dependencies = [
+ "log",
+ "zeroize",
+]
+
+[[package]]
 name = "launcher-core"
 version = "0.1.0"
 dependencies = [
@@ -2873,6 +2883,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "rem-launcher"
 version = "0.1.0"
 dependencies = [
+ "keyring",
  "launcher-core",
  "launcher-install",
  "reqwest 0.12.28",

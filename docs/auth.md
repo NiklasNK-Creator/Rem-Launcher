@@ -8,5 +8,7 @@ Implemented (2026-09-22):
 - `src/auth.ts`: `addOfflineAccount(name)` (deterministic offline UUID),
   `addMicrosoftAccount(onCode)` showing the device code for the user.
 - No Entra app needed: prismarine-auth defaults to the Switch-title flow.
-- Follow-ups: persist ms refresh cache via on-disk cache dir (currently
-  in-memory), OS-keychain encryption, silent refresh, entitlements check.
+- Tokens in OS keychain (`keyring`, service `dev.remlauncher.app`):
+  `accounts.json` never holds secrets; `get_account_token` reads at launch;
+  removal wipes the credential. Missing/expired token → clear re-auth prompt.
+- Remaining: silent refresh via cached MS refresh token, entitlements check.

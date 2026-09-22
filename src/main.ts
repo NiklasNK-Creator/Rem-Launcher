@@ -415,18 +415,42 @@ playBtn.onclick = async () => {
   ]);
   const acc = accounts.find((a) => a.id === accountId)!;
   const inst = instances.find((i) => i.name === instanceName)!;
-  playStatus.textContent = `Launching ${inst.name} (${inst.game_version}) as ${acc.mc_name}… (libraries + assets download first)`;
+  // Tokens live in the OS keychain, not in accounts.json.
+  type StoredToken = { accessToken?: unknown };
+  const readToken = (raw: string | null): string | undefined => {
+    if (!raw) return undefined;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+    if (parsed && typeof parsed === "object" && "accessToken" in parsed) {
+      // Named type (not inline shape): keychain blob written by addMicrosoftAccount.
+      const t: StoredToken = parsed as StoredToken;
+      return typeof t.accessToken === "string" ? t.accessToken : undefined;
+    }
+    return undefined;
+  };
+  let accessToken: string | undefined;
+  if (acc.kind === "microsoft") {
+    accessToken = readToken(await invoke<string | null>("get_account_token", { id: acc.id }));
+    if (!accessToken) {
+      playStatus.textContent = "Microsoft token expired or missing — remove and re-add the account.";
+      return;
+    }
+  }
+  playStatus.textContent = `Launching ${inst.name} (${inst.game_version}) as ${acc.mc_name}…`;
   try {
     const r = await invoke<{ pid: number }>("launch_game", {
       version: inst.game_version,
       accountId: acc.id,
       accountName: acc.mc_name,
       accountUuid: acc.uuid,
-      accessToken: (acc.ms_refresh as { accessToken?: string } | undefined)?.accessToken,
+      accessToken,
       instance: inst.name,
       loader: inst.loader,
     });
-    playStatus.textContent = `Game started (pid ${r.pid}).`;
     launchBar.hidden = true;
   } catch (e) {
     playStatus.textContent = `Launch failed: ${e}`;
