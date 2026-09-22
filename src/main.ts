@@ -20,6 +20,8 @@ const instName = document.querySelector<HTMLInputElement>("#inst-name")!;
 const instVersion = document.querySelector<HTMLSelectElement>("#inst-version")!;
 invoke<string[]>("list_versions", { kind: "release" }).then((vs) => {
   instVersion.innerHTML = vs.slice(0, 30).map((v) => `<option value="${v}">${v}</option>`).join("");
+  const sv = document.querySelector<HTMLSelectElement>("#search-version")!;
+  sv.innerHTML = `<option value="">Any version</option>` + vs.slice(0, 30).map((v) => `<option value="${v}">${v}</option>`).join("");
 });
 const instLoader = document.querySelector<HTMLInputElement>("#inst-loader")!;
 const createInst = document.querySelector<HTMLButtonElement>("#create-inst")!;
@@ -334,8 +336,13 @@ async function installPack(projectId: string) {
 go.onclick = async () => {
   results.textContent = "Searching…";
   const ct = (document.querySelector<HTMLSelectElement>("#content-type")!).value;
+  const sv = (document.querySelector<HTMLSelectElement>("#search-version")!).value;
+  const sl = (document.querySelector<HTMLSelectElement>("#search-loader")!).value;
   try {
-    const hits = await invoke<Project[]>("search_mods", { text: q.value, limit: 20, contentType: ct });
+    const hits = await invoke<Project[]>("search_mods", {
+      text: q.value, limit: 20, contentType: ct,
+      gameVersion: sv || null, loader: sl || null,
+    });
     results.innerHTML = "";
     for (const h of hits) {
       const div = document.createElement("div");
