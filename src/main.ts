@@ -294,6 +294,24 @@ addMsBtn.onclick = async () => {
   }
 };
 
+async function installPack(projectId: string) {
+  results.textContent = "Resolving modpack…";
+  try {
+    const vs = await invoke<ProjectVersion[]>("project_versions", { projectId, gameVersions: [], loaders: [] });
+    const v = vs[0];
+    const file = v?.files.find((x) => x.primary) ?? v?.files[0];
+    if (!v || !file || !file.name.endsWith(".mrpack")) throw new Error("no .mrpack file found");
+    results.textContent = `Downloading ${file.name}…`;
+    const r = await invoke<{ instance: string; files: number }>("install_mrpack_url", { url: file.url });
+    const list = await invoke<Instance[]>("list_instances");
+    renderInstances(list);
+    refreshPlaySelectors();
+    results.textContent = `Installed pack as ${r.instance} (${r.files} files).`;
+  } catch (e) {
+    results.textContent = `Pack install failed: ${e}`;
+  }
+}
+
 go.onclick = async () => {
   results.textContent = "Searching…";
   const ct = (document.querySelector<HTMLSelectElement>("#content-type")!).value;
@@ -308,8 +326,8 @@ go.onclick = async () => {
       const meta = document.createElement("span");
       meta.textContent = ` — ${h.downloads} downloads`;
       const btn = document.createElement("button");
-      btn.textContent = ct === "mod" ? "Install" : "Download";
-      btn.onclick = () => installToFirstInstance(h.id, ct);
+      btn.textContent = ct === "modpack" ? "Install pack" : ct === "mod" ? "Install" : "Download";
+      btn.onclick = () => (ct === "modpack" ? installPack(h.id) : installToFirstInstance(h.id, ct));
       div.append(title, meta, btn);
       results.appendChild(div);
     }

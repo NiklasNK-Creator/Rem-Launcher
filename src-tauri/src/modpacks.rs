@@ -70,7 +70,22 @@ fn url_host_ok(url: &str) -> bool {
 #[tauri::command]
 pub async fn import_mrpack(app: AppHandle, path: String) -> Result<ImportedPack, String> {
     let raw = std::fs::read(&path).map_err(|e| e.to_string())?;
-    let cursor = std::io::Cursor::new(raw);
+    import_mrpack_bytes(app, &raw).await
+}
+
+/// Download a .mrpack from a URL (Modrinth version file) and import it.
+#[tauri::command]
+pub async fn install_mrpack_url(app: AppHandle, url: String) -> Result<ImportedPack, String> {
+    if !url.starts_with("https://") {
+        return Err("only https URLs allowed".into());
+    }
+    let bytes = reqwest::get(&url).await.map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+    import_mrpack_bytes(app, &bytes).await
+}
+
+/// Shared import core: works for local files and downloaded bytes.
+pub async fn import_mrpack_bytes(app: AppHandle, raw: &[u8]) -> Result<ImportedPack, String> {
+    let cursor = std::io::Cursor::new(raw.to_vec());
     let mut zip = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
     let index_raw = {
         let mut f = zip.by_name("modrinth.index.json").map_err(|e| e.to_string())?;
