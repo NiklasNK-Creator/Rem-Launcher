@@ -113,6 +113,23 @@ fn rule_allows(rules: &Option<Vec<Rule>>) -> bool {
     allowed
 }
 
+/// Extract strings from a modern `arguments` entry: plain strings pass
+/// through substitution; rule-gated objects/lists apply only when allowed.
+fn extract_arg(entry: &serde_json::Value, sub: &dyn Fn(&str) -> String) -> Vec<String> {
+    match entry {
+        serde_json::Value::String(s) => vec![sub(s)],
+        serde_json::Value::Array(items) => items.iter().filter_map(|v| v.as_str().map(sub)).collect(),
+        serde_json::Value::Object(map) => {
+            let allowed = map.get("rules").and_then(|r| serde_json::from_value::<Vec<Rule>>(r.clone()).ok()).map(|rules| rule_allows(&Some(rules))).unwrap_or(true);
+            if !allowed {
+                return vec![];
+            }
+            map.get("value").map(|v| extract_arg(v, sub)).unwrap_or_default()
+        }
+        _ => vec![],
+    }
+}
+
 fn maven_path(name: &str) -> Option<String> {
     let mut parts = name.split(':');
     let g = parts.next()?.replace('.', "/");
@@ -402,32 +419,64 @@ pub async fn launch_game(
     let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
     let classpath = cp.join(sep);
 
-    let token = access_token.unwrap_or_else(|| "0".into());
-    let user_type = if account_id.starts_with("microsoft:") { "msa" } else { "legacy" };
-    let args = [
-        format!("-Djava.library.path={}", natives_dir.to_string_lossy()),
-        "-cp".to_string(),
-        classpath,
-        main_class,
-        "--username".into(),
-        account_name,
-        "--version".into(),
-        version.clone(),
-        "--gameDir".into(),
-        game_dir.to_string_lossy().into(),
-        "--assetsDir".into(),
-        assets_dir.to_string_lossy().into(),
-        "--assetIndex".into(),
-        pkg.assets.clone().unwrap_or(assets_id),
-        "--uuid".into(),
-        account_uuid,
-        "--accessToken".into(),
-        token,
-        "--userType".into(),
-        user_type.into(),
-        "--versionType".into(),
-        "release".into(),
+    let token: String = access_token.unwrap_or_else(|| "0".into());
+    let user_type: String = if account_id.starts_with("microsoft:") { "msa".into() } else { "legacy".into() };
+    // Placeholder values shared by legacy + modern argument templates.
+    let subs: Vec<(&str, String)> = vec![
+        ("${auth_player_name}", account_name.clone()),
+        ("${version_name}", version.clone()),
+        ("${game_directory}", game_dir.to_string_lossy().into()),
+        ("${assets_root}", assets_dir.to_string_lossy().into()),
+        ("${assets_index_name}", pkg.assets.clone().unwrap_or_else(|| "legacy".into())),
+        ("${auth_uuid}", account_uuid.clone()),
+        ("${auth_access_token}", token.clone()),
+        ("${user_type}", user_type.clone()),
+        ("${version_type}", "release".into()),
+        ("${natives_directory}", natives_dir.to_string_lossy().into()),
+        ("${launcher_name}", "rem-launcher".into()),
+        ("${launcher_version}", "0.1.0".into()),
+        ("${classpath}", classpath.clone()),
     ];
+    let sub = |s: &str| -> String {
+        let mut out = s.to_string();
+        for (k, v) in &subs {
+            out = out.replace(k, v);
+        }
+        out
+    };
+    let mut args: Vec<String> = vec![
+        format!("-Djava.library.path={}", natives_dir.to_string_lossy()),
+    ];
+    if let Some(arguments) = &pkg.arguments {
+        // Modern (>=1.13) packages: rule-filtered jvm + game args.
+        for entry in arguments.get("jvm").and_then(|v| v.as_array()).map(|a| a.as_slice()).unwrap_or(&[]) {
+            args.extend(extract_arg(entry, &sub));
+        }
+        args.push("-cp".into());
+        args.push(classpath.clone());
+        args.push(main_class.clone());
+        for entry in arguments.get("game").and_then(|v| v.as_array()).map(|a| a.as_slice()).unwrap_or(&[]) {
+            // Skip modern-only flags unknown to legacy main classes (harmless either way).
+            args.extend(extract_arg(entry, &sub));
+        }
+    } else {
+        // Legacy (<=1.12): fixed template; minecraftArguments variant ignored
+        // (same fields, different order — vanilla accepts any order).
+        args.extend([
+            "-cp".to_string(),
+            classpath,
+            main_class,
+            "--username".into(), account_name,
+            "--version".into(), version.clone(),
+            "--gameDir".into(), game_dir.to_string_lossy().into(),
+            "--assetsDir".into(), assets_dir.to_string_lossy().into(),
+            "--assetIndex".into(), pkg.assets.clone().unwrap_or_else(|| "legacy".into()),
+            "--uuid".into(), account_uuid,
+            "--accessToken".into(), token,
+            "--userType".into(), user_type,
+            "--versionType".into(), "release".into(),
+        ]);
+    }
 
     use std::process::Stdio;
     let log_path = game_dir.join("rem-launcher.log");
