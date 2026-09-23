@@ -24,7 +24,7 @@ invoke<string[]>("list_versions", { kind: "release" }).then((vs) => {
   const sv = document.querySelector<HTMLSelectElement>("#search-version")!;
   sv.innerHTML = `<option value="">Any version</option>` + vs.slice(0, 30).map((v) => `<option value="${v}">${v}</option>`).join("");
 });
-const instLoader = document.querySelector<HTMLInputElement>("#inst-loader")!;
+const instLoader = document.querySelector<HTMLSelectElement>("#inst-loader")!;
 const createInst = document.querySelector<HTMLButtonElement>("#create-inst")!;
 
 function renderAccounts(accounts: Account[]) {

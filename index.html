@@ -476,7 +476,13 @@
           <div class="controls-bar">
             <input id="inst-name" placeholder="Instance name" maxlength="64" />
             <select id="inst-version"></select>
-            <input id="inst-loader" placeholder="Loader (fabric/quilt/vanilla)" value="fabric" />
+            <select id="inst-loader">
+              <option value="fabric">Fabric</option>
+              <option value="quilt">Quilt</option>
+              <option value="vanilla">Vanilla</option>
+              <option value="forge">Forge (processors pending)</option>
+              <option value="neoforge">NeoForge (processors pending)</option>
+            </select>
             <button id="create-inst" class="primary">Create instance</button>
           </div>
           <div class="controls-bar" style="margin-top: 0.5rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05);">
