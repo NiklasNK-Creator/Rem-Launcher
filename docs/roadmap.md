@@ -16,12 +16,12 @@
 - [x] Dependency + license review (all MIT/Apache)
 - [x] README + MIT license + UI smoke verification
 - [x] Server list: saved servers, ping/latency check, quick-connect launch
+- [x] Silent MS token refresh: persistent CacheFactory + silent re-auth on launch
 
 ## Next (in order)
 1. Supervised live-launch test with user → tag `v0.1.0-alpha`.
 2. Forge/NeoForge installer processor support (version resolution exists).
-3. Silent MS token refresh (persist prismarine-auth cache to disk).
-4. CurseForge — only if user reverses deferral (needs API key).
+3. CurseForge — only if user reverses deferral (needs API key).
 
 ## Decisions (user, 2026-09-22)
 - Name: **Rem Launcher** (blue theme, Rem-inspired).

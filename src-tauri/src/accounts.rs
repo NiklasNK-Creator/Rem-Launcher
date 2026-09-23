@@ -76,6 +76,36 @@ pub fn get_account_token(id: String) -> Option<String> {
         .ok()
         .and_then(|e| e.get_password().ok())
 }
+fn auth_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("auth_cache");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn safe_cache_key(key: &str) -> Option<String> {
+    if key.is_empty() || key.len() > 128 || key.contains(['/', '\\', '.', ':']) { return None; }
+    Some(key.to_string())
+}
+
+#[tauri::command]
+pub fn get_auth_cache(app: AppHandle, key: String) -> Option<String> {
+    let k = safe_cache_key(&key)?;
+    std::fs::read_to_string(auth_cache_dir(&app).ok()?.join(format!("{k}.json"))).ok()
+}
+
+#[tauri::command]
+pub fn set_auth_cache(app: AppHandle, key: String, value: String) -> Result<(), String> {
+    let k = safe_cache_key(&key).ok_or("invalid cache key")?;
+    std::fs::write(auth_cache_dir(&app)?.join(format!("{k}.json")), value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reset_auth_cache(app: AppHandle, key: String) -> Result<(), String> {
+    let k = safe_cache_key(&key).ok_or("invalid cache key")?;
+    let file = auth_cache_dir(&app)?.join(format!("{k}.json"));
+    if file.exists() { std::fs::remove_file(file).map_err(|e| e.to_string())?; }
+    Ok(())
+}
 
 #[tauri::command]
 pub fn touch_account(app: AppHandle, id: String) -> Vec<Account> {

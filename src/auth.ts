@@ -65,9 +65,22 @@ export async function addOfflineAccount(name: string): Promise<Account[]> {
 export async function addMicrosoftAccount(
   onCode: (code: string, uri: string) => void,
 ): Promise<Account[]> {
-  // NOTE: token cache is in-memory (prismarine-auth default); the captured
-  // access token expires (~24h). Re-adding the account refreshes it.
-  const flow = new Authflow(`ms:${Date.now()}`, undefined, {}, (code: { user_code: string; verification_uri: string }) =>
+  // CacheFactory persists MSA/Xbox/Minecraft token blobs through Tauri into
+  // the launcher data directory. prismarine-auth then refreshes silently.
+  const cacheFactory = ({ username, cacheName }: { username: string; cacheName: string }) => {
+    const key = `${encodeURIComponent(username)}__${cacheName}`;
+    return {
+      async reset() { await invoke("reset_auth_cache", { key }); },
+      async getCached() {
+        const raw = await invoke<string | null>("get_auth_cache", { key });
+        return raw ? JSON.parse(raw) : null;
+      },
+      async setCached(value: unknown) {
+        await invoke("set_auth_cache", { key, value: JSON.stringify(value) });
+      },
+    };
+  };
+  const flow = new Authflow(`ms:${Date.now()}`, cacheFactory, {}, (code: { user_code: string; verification_uri: string }) =>
     onCode(code.user_code, code.verification_uri),
   );
   const { token, entitlements, profile } = await flow.getMinecraftJavaToken({ fetchEntitlements: true, fetchProfile: true });
@@ -88,4 +101,40 @@ export async function addMicrosoftAccount(
       cape_id: p.capes?.[0]?.id ?? null,
     } satisfies Account,
   });
+}
+
+export async function refreshMicrosoftAccount(accountId: string): Promise<string | null> {
+  const cacheFactory = ({ username, cacheName }: { username: string; cacheName: string }) => {
+    const key = `${encodeURIComponent(username)}__${cacheName}`;
+    return {
+      async reset() { await invoke("reset_auth_cache", { key }); },
+      async getCached() {
+        const raw = await invoke<string | null>("get_auth_cache", { key });
+        return raw ? JSON.parse(raw) : null;
+      },
+      async setCached(value: unknown) {
+        await invoke("set_auth_cache", { key, value: JSON.stringify(value) });
+      },
+    };
+  };
+  try {
+    const flow = new Authflow(accountId, cacheFactory);
+    const { token, profile } = await flow.getMinecraftJavaToken({ fetchProfile: true });
+    const p = profile as { id: string; name: string } | undefined;
+    if (token && p?.id) {
+      await invoke("add_account", {
+        account: {
+          id: accountId,
+          kind: "microsoft",
+          mc_name: p.name,
+          uuid: p.id,
+          ms_refresh: { accessToken: token },
+        } satisfies Account,
+      });
+      return token;
+    }
+  } catch {
+    // silent refresh failed; caller handles re-auth prompt
+  }
+  return null;
 }

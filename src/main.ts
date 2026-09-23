@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { addMicrosoftAccount, addOfflineAccount, type Account } from "./auth";
+import { addMicrosoftAccount, addOfflineAccount, refreshMicrosoftAccount, type Account } from "./auth";
 
 type Project = { id: string; title: string; description: string; downloads: number };
 type Instance = { name: string; game_version: string; loader: string; max_memory_mb?: number | null; jvm_args?: string | null };
@@ -575,8 +575,12 @@ playBtn.onclick = async () => {
   if (acc.kind === "microsoft") {
     accessToken = readToken(await invoke<string | null>("get_account_token", { id: acc.id }));
     if (!accessToken) {
-      playStatus.textContent = "Microsoft token expired or missing — remove and re-add the account.";
-      return;
+      playStatus.textContent = "Session expired — refreshing silently…";
+      accessToken = await refreshMicrosoftAccount(acc.id) ?? undefined;
+      if (!accessToken) {
+        playStatus.textContent = "Microsoft token expired — remove and re-add the account.";
+        return;
+      }
     }
   }
   playStatus.textContent = `Launching ${inst.name} (${inst.game_version}) as ${acc.mc_name}…`;
