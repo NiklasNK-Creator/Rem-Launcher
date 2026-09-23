@@ -705,6 +705,20 @@ pub fn detect_java() -> Result<JavaInfo, String> {
     Err("no Java runtime found on PATH".into())
 }
 
+#[tauri::command]
+pub fn validate_java_path(path: Option<String>) -> Result<JavaInfo, String> {
+    let candidate = path.filter(|p| !p.trim().is_empty()).unwrap_or_else(|| "java".into());
+    let out = std::process::Command::new(&candidate)
+        .arg("-version")
+        .output()
+        .map_err(|e| format!("could not execute Java '{candidate}': {e}"))?;
+    let line = String::from_utf8_lossy(&out.stderr).lines().next().unwrap_or("").to_string();
+    if line.is_empty() {
+        return Err(format!("Java '{candidate}' did not report a version"));
+    }
+    Ok(JavaInfo { path: candidate, version_line: line.clone(), major: parse_java_major(&line) })
+}
+
 /// Parse `openjdk version "25.0.4"` / `java version "1.8.0_392"` → 25 / 8.
 fn parse_java_major(line: &str) -> u32 {
     let v = line.split('"').nth(1).unwrap_or("");

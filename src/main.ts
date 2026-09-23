@@ -70,7 +70,8 @@ function renderInstances(list: Instance[]) {
     const div = document.createElement("div");
     div.className = "card";
     const label = document.createElement("span");
-    label.textContent = `${i.name} — ${i.game_version} (${i.loader}) [${i.max_memory_mb ?? 4096}MB]`;
+    const javaTag = i.java_path ? ` · Java: ${i.java_path}` : "";
+    label.textContent = `${i.name} — ${i.game_version} (${i.loader}) [${i.max_memory_mb ?? 4096}MB${javaTag}]`;
     const modsBtn = document.createElement("button");
     modsBtn.textContent = "Mods";
     const verifyBtn = document.createElement("button");
@@ -97,11 +98,18 @@ function renderInstances(list: Instance[]) {
       }
       const java = prompt("Java executable path (blank = system java):", i.java_path ?? "");
       if (java === null) return;
+      const javaPath = java.trim() || null;
+      try {
+        await invoke("validate_java_path", { path: javaPath });
+      } catch (e) {
+        label.textContent = `Java path invalid: ${e}`;
+        return;
+      }
       const updated = await invoke<Instance[]>("configure_instance", {
         name: i.name,
         maxMemoryMb: memory,
         jvmArgs: i.jvm_args ?? null,
-        javaPath: java.trim() || null,
+        javaPath,
       });
       renderInstances(updated);
     };
