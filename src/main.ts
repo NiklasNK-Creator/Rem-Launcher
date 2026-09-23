@@ -554,6 +554,11 @@ playBtn.onclick = async () => {
   ]);
   const acc = accounts.find((a) => a.id === accountId)!;
   const inst = instances.find((i) => i.name === instanceName)!;
+  if (inst.loader === "forge" || inst.loader === "neoforge") {
+    playStatus.textContent = `${inst.loader === "forge" ? "Forge" : "NeoForge"} instances are not yet launchable: installer processors are still pending. Clone or recreate this instance with Fabric or Quilt.`;
+    launchBar.hidden = true;
+    return;
+  }
   // Tokens live in the OS keychain, not in accounts.json.
   type StoredToken = { accessToken?: unknown };
   const readToken = (raw: string | null): string | undefined => {

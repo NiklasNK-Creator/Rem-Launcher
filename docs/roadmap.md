@@ -20,8 +20,8 @@
 
 ## Next (in order)
 1. Supervised live-launch test with user → tag `v0.1.0-alpha`.
-2. Forge/NeoForge installer processor support (version resolution exists).
-3. CurseForge — only if user reverses deferral (needs API key).
+2. Forge/NeoForge installer processor support (version resolution exists;
+   Play blocks those instances with a clone/recreate hint until then).
 
 ## Decisions (user, 2026-09-22)
 - Name: **Rem Launcher** (blue theme, Rem-inspired).
