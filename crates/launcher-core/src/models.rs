@@ -37,6 +37,10 @@ pub struct Project {
     pub loaders: Vec<String>,
     pub icon_url: Option<String>,
     pub downloads: u64,
+    #[serde(default)]
+    pub follows: u64,
+    #[serde(default)]
+    pub updated: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

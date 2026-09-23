@@ -74,8 +74,11 @@ struct Hit {
     #[serde(default)]
     icon_url: Option<String>,
     downloads: u64,
+    #[serde(default)]
+    follows: u64,
+    #[serde(default)]
+    date_modified: Option<String>,
 }
-
 #[derive(Debug, Deserialize)]
 struct FullProject {
     id: String,
@@ -88,6 +91,10 @@ struct FullProject {
     #[serde(default)]
     icon_url: Option<String>,
     downloads: u64,
+    #[serde(default)]
+    follows: u64,
+    #[serde(default)]
+    updated: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -187,6 +194,8 @@ impl ContentProvider for ModrinthProvider {
                 loaders: vec![],
                 icon_url: h.icon_url,
                 downloads: h.downloads,
+                follows: h.follows,
+                updated: h.date_modified,
             })
             .collect())
     }
@@ -204,9 +213,10 @@ impl ContentProvider for ModrinthProvider {
             loaders: p.loaders,
             icon_url: p.icon_url,
             downloads: p.downloads,
+            follows: p.follows,
+            updated: p.updated,
         })
     }
-
     async fn versions(
         &self,
         id: &str,

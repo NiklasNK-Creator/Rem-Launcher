@@ -46,6 +46,8 @@ impl ContentProvider for CurseForgeProvider {
             loaders: vec![],
             icon_url: None,
             downloads: 0,
+            follows: 0,
+            updated: None,
         })
     }
 

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { addMicrosoftAccount, addOfflineAccount, refreshMicrosoftAccount, type Account } from "./auth";
 
-type Project = { id: string; title: string; description: string; downloads: number };
+type Project = { id: string; title: string; description: string; downloads: number; follows?: number | null; updated?: string | null; icon_url?: string | null };
 type Instance = { name: string; game_version: string; loader: string; max_memory_mb?: number | null; jvm_args?: string | null };
 type VersionFile = { name: string; url: string; sha512: string | null; primary: boolean };
 type VersionDep = { project_id: string | null; dependency_type: string };
@@ -418,10 +418,20 @@ go.onclick = async () => {
       for (const h of items) {
         const div = document.createElement("div");
         div.className = "card";
+        if (h.icon_url) {
+          const icon = document.createElement("img");
+          icon.src = h.icon_url;
+          icon.width = 40;
+          icon.height = 40;
+          icon.alt = "";
+          icon.loading = "lazy";
+          div.appendChild(icon);
+        }
         const title = document.createElement("strong");
         title.textContent = h.title;
         const meta = document.createElement("span");
-        meta.textContent = ` — ${h.downloads} downloads`;
+        const updated = h.updated ? ` · updated ${new Date(h.updated).toLocaleDateString()}` : "";
+        meta.textContent = ` — ${h.downloads.toLocaleString()} downloads · ${(h.follows ?? 0).toLocaleString()} follows${updated}`;
         const btn = document.createElement("button");
         btn.textContent = ct === "modpack" ? "Install pack" : ct === "mod" ? "Install" : "Download";
         btn.onclick = () => (ct === "modpack" ? installPack(h.id) : installToFirstInstance(h.id, ct));
