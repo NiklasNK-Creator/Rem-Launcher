@@ -13,6 +13,8 @@ pub struct Instance {
     pub jvm_args: Option<String>,
     #[serde(default)]
     pub max_memory_mb: Option<u32>,
+    #[serde(default)]
+    pub java_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,6 +130,7 @@ pub fn clone_instance(app: AppHandle, source_name: String, new_name: String) -> 
         loader: src.loader,
         jvm_args: src.jvm_args,
         max_memory_mb: src.max_memory_mb,
+        java_path: src.java_path,
     };
     all.push(cloned);
     save_all(&app, &all)?;
@@ -181,6 +184,7 @@ pub fn create_instance(
         loader,
         jvm_args: None,
         max_memory_mb: None,
+        java_path: None,
     });
     save_all(&app, &all)?;
     Ok(all)
@@ -192,6 +196,7 @@ pub fn configure_instance(
     name: String,
     max_memory_mb: Option<u32>,
     jvm_args: Option<String>,
+    java_path: Option<String>,
 ) -> Result<Vec<Instance>, String> {
     if !valid_instance_name(&name) {
         return Err("invalid instance name".into());
@@ -201,6 +206,7 @@ pub fn configure_instance(
     if let Some(inst) = all.iter_mut().find(|i| i.name == trimmed) {
         inst.max_memory_mb = max_memory_mb;
         inst.jvm_args = jvm_args.filter(|s| !s.trim().is_empty());
+        inst.java_path = java_path.filter(|s| !s.trim().is_empty());
         save_all(&app, &all)?;
         Ok(all)
     } else {

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { addMicrosoftAccount, addOfflineAccount, refreshMicrosoftAccount, type Account } from "./auth";
 
 type Project = { id: string; title: string; description: string; downloads: number; follows?: number | null; updated?: string | null; icon_url?: string | null };
-type Instance = { name: string; game_version: string; loader: string; max_memory_mb?: number | null; jvm_args?: string | null };
+type Instance = { name: string; game_version: string; loader: string; max_memory_mb?: number | null; jvm_args?: string | null; java_path?: string | null };
 type VersionFile = { name: string; url: string; sha512: string | null; primary: boolean };
 type VersionDep = { project_id: string | null; dependency_type: string };
 type ProjectVersion = { version_number: string; files: VersionFile[]; dependencies: VersionDep[] };
@@ -95,7 +95,14 @@ function renderInstances(list: Instance[]) {
         label.textContent = "Memory must be an integer from 512 to 65536 MB";
         return;
       }
-      const updated = await invoke<Instance[]>("configure_instance", { name: i.name, maxMemoryMb: memory, jvmArgs: null });
+      const java = prompt("Java executable path (blank = system java):", i.java_path ?? "");
+      if (java === null) return;
+      const updated = await invoke<Instance[]>("configure_instance", {
+        name: i.name,
+        maxMemoryMb: memory,
+        jvmArgs: i.jvm_args ?? null,
+        javaPath: java.trim() || null,
+      });
       renderInstances(updated);
     };
     const folderBtn = document.createElement("button");

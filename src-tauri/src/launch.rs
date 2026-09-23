@@ -555,15 +555,15 @@ pub async fn launch_game(
         }
         out
     };
-    let (max_mem, custom_jvm) = if let Some(name) = &instance {
+    let (max_mem, custom_jvm, custom_java) = if let Some(name) = &instance {
         let instances = crate::instances::list_instances(app.clone());
         instances
             .into_iter()
             .find(|i| i.name == *name)
-            .map(|i| (i.max_memory_mb, i.jvm_args))
-            .unwrap_or((None, None))
+            .map(|i| (i.max_memory_mb, i.jvm_args, i.java_path))
+            .unwrap_or((None, None, None))
     } else {
-        (None, None)
+        (None, None, None)
     };
 
     let mut jvm_prefix = vec![
@@ -615,13 +615,14 @@ pub async fn launch_game(
     let log_path = game_dir.join("rem-launcher.log");
     let log_file = std::fs::File::create(&log_path).map_err(|e| e.to_string())?;
     let log_err = log_file.try_clone().map_err(|e| e.to_string())?;
-    let mut child = std::process::Command::new("java")
+    let java_command = custom_java.as_deref().unwrap_or("java");
+    let mut child = std::process::Command::new(java_command)
         .args(&args)
         .current_dir(&game_dir)
         .stdout(Stdio::from(log_file))
         .stderr(Stdio::from(log_err))
         .spawn()
-        .map_err(|e| format!("failed to spawn java (is it installed?): {e}"))?;
+        .map_err(|e| format!("failed to spawn Java executable '{java_command}': {e}"))?;
     let pid = child.id();
     let watching = log_path.to_string_lossy().into_owned();
     std::thread::spawn(move || {
