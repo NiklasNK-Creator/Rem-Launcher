@@ -667,4 +667,20 @@ addServerBtn.onclick = async () => {
   } catch (e) { serversEl.textContent = `Add failed: ${e}`; }
 };
 
+const pingAllBtn = document.querySelector<HTMLButtonElement>("#ping-all");
+if (pingAllBtn) {
+  pingAllBtn.onclick = async () => {
+    const current = await invoke<SavedServer[]>("list_servers");
+    if (!current.length) return;
+    pingAllBtn.disabled = true;
+    pingAllBtn.textContent = "Pinging…";
+    for (const s of current) {
+      try { await invoke("ping_server", { id: s.id }); } catch {}
+    }
+    renderServers(await invoke<SavedServer[]>("list_servers"));
+    pingAllBtn.disabled = false;
+    pingAllBtn.textContent = "Ping all";
+  };
+}
+
 invoke<SavedServer[]>("list_servers").then(renderServers);
