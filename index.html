@@ -433,6 +433,7 @@
       <nav class="tabs">
         <button class="tab-btn active" data-tab="tab-play">Play</button>
         <button class="tab-btn" data-tab="tab-instances">Instances</button>
+        <button class="tab-btn" data-tab="tab-servers">Servers</button>
         <button class="tab-btn" data-tab="tab-mods">Browse Content</button>
         <button class="tab-btn" data-tab="tab-accounts">Accounts</button>
       </nav>
@@ -450,6 +451,10 @@
             <div class="selector-group">
               <span class="selector-label">Instance</span>
               <select id="play-instance"></select>
+            </div>
+            <div class="selector-group">
+              <span class="selector-label">Server (optional)</span>
+              <select id="play-server"><option value="">None</option></select>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
               <button id="play-btn" class="play-btn-large">Play</button>
@@ -487,6 +492,19 @@
             <h2 class="section-title">📂 Installed Instances</h2>
           </div>
           <div id="instances"></div>
+        </div>
+      </div>
+
+      <!-- TAB: SERVERS -->
+      <div id="tab-servers" class="tab-content">
+        <div class="section-card">
+          <div class="section-header"><h2 class="section-title">🌐 Saved Servers</h2></div>
+          <div class="controls-bar">
+            <input id="server-name" placeholder="Server name" />
+            <input id="server-address" placeholder="play.example.com:25565" />
+            <button id="add-server" class="primary">Add server</button>
+          </div>
+          <div id="servers"></div>
         </div>
       </div>
 

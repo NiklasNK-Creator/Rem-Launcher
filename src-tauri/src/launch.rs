@@ -426,6 +426,7 @@ pub async fn launch_game(
     access_token: Option<String>,
     instance: Option<String>,
     loader: Option<String>,
+    server: Option<String>,
 ) -> Result<LaunchResult, String> {
     use tauri::Emitter;
     let step = |phase: &str, done: u32| {
@@ -601,11 +602,15 @@ pub async fn launch_game(
             "--assetIndex".into(), pkg.assets.clone().unwrap_or_else(|| "legacy".into()),
             "--uuid".into(), account_uuid,
             "--accessToken".into(), token,
-            "--userType".into(), user_type,
             "--versionType".into(), "release".into(),
         ]);
     }
 
+    if let Some(srv) = server.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        let (host, port) = srv.split_once(':').unwrap_or((srv, "25565"));
+        args.extend(["--server".into(), host.to_string(), "--port".into(), port.to_string()]);
+        args.extend(["--quickPlayMultiplayer".into(), srv.to_string()]);
+    }
     use std::process::Stdio;
     let log_path = game_dir.join("rem-launcher.log");
     let log_file = std::fs::File::create(&log_path).map_err(|e| e.to_string())?;

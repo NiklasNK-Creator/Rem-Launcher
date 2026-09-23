@@ -12,6 +12,7 @@ mod backups;
 mod instances;
 mod launch;
 mod modpacks;
+mod servers;
 
 struct AppState {
     modrinth: Arc<ModrinthProvider>,
@@ -76,8 +77,7 @@ fn main() {
         modrinth: Arc::new(ModrinthProvider::new()),
     };
     tauri::Builder::default()
-        .manage(state)
-        .invoke_handler(tauri::generate_handler![search_mods, project_versions, project_info, accounts::list_accounts, accounts::get_account_token, accounts::touch_account, accounts::add_account, accounts::remove_account, launch::prepare_client, launch::detect_java, launch::launch_game, launch::read_log_tail, launch::list_versions, instances::list_instances, instances::create_instance, instances::configure_instance, instances::clone_instance, instances::delete_instance, instances::open_instance_folder, instances::install_mod, instances::list_instance_mods, instances::remove_content_item, instances::toggle_content_item, instances::remove_mod, instances::locked_mods, instances::verify_instance, instances::repair_instance, backups::list_backups, backups::create_backup, backups::restore_backup, backups::delete_backup, modpacks::import_mrpack, modpacks::install_mrpack_url, modpacks::export_mrpack])
+        .invoke_handler(tauri::generate_handler![search_mods, project_versions, project_info, accounts::list_accounts, accounts::get_account_token, accounts::touch_account, accounts::add_account, accounts::remove_account, launch::prepare_client, launch::detect_java, launch::launch_game, launch::read_log_tail, launch::list_versions, instances::list_instances, instances::create_instance, instances::configure_instance, instances::clone_instance, instances::delete_instance, instances::open_instance_folder, instances::install_mod, instances::list_instance_mods, instances::remove_content_item, instances::toggle_content_item, instances::remove_mod, instances::locked_mods, instances::verify_instance, instances::repair_instance, backups::list_backups, backups::create_backup, backups::restore_backup, backups::delete_backup, servers::list_servers, servers::add_server, servers::remove_server, servers::ping_server, modpacks::import_mrpack, modpacks::install_mrpack_url, modpacks::export_mrpack])
         .run(tauri::generate_context!())
         .expect("failed to run Rem Launcher");
 }

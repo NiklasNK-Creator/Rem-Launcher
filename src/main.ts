@@ -508,9 +508,10 @@ const playAccount = document.querySelector<HTMLSelectElement>("#play-account")!;
 const playInstance = document.querySelector<HTMLSelectElement>("#play-instance")!;
 
 async function refreshPlaySelectors(preferAccount?: string) {
-  const [accounts, instances] = await Promise.all([
+  const [accounts, instances, servers] = await Promise.all([
     invoke<Account[]>("list_accounts"),
     invoke<Instance[]>("list_instances"),
+    invoke<{ id: string; name: string; address: string; last_ping_ms?: number | null }[]>("list_servers"),
   ]);
   const sorted = [...accounts].sort((a, b) => (b.last_used ?? "").localeCompare(a.last_used ?? ""));
   playAccount.innerHTML = sorted.map((a) => `<option value="${a.id}">${a.mc_name} [${a.kind}]</option>`).join("");
@@ -519,6 +520,8 @@ async function refreshPlaySelectors(preferAccount?: string) {
   playInstance.innerHTML = instances.map((i) => `<option value="${i.name}">${i.name} — ${i.game_version} (${i.loader})</option>`).join("");
   const lastInst = localStorage.getItem("rem-last-instance");
   if (lastInst && instances.some((i) => i.name === lastInst)) playInstance.value = lastInst;
+  const serverSelect = document.querySelector<HTMLSelectElement>("#play-server")!;
+  serverSelect.innerHTML = `<option value="">None</option>` + servers.map((s) => `<option value="${s.address}">${s.name} — ${s.address}</option>`).join("");
 }
 invoke<Account[]>("list_accounts").then((a) => {
   renderAccounts(a);
@@ -578,6 +581,7 @@ playBtn.onclick = async () => {
   }
   playStatus.textContent = `Launching ${inst.name} (${inst.game_version}) as ${acc.mc_name}…`;
   try {
+    const serverAddr = (document.querySelector<HTMLSelectElement>("#play-server")!).value.trim();
     const r = await invoke<{ pid: number }>("launch_game", {
       version: inst.game_version,
       accountId: acc.id,
@@ -586,8 +590,8 @@ playBtn.onclick = async () => {
       accessToken,
       instance: inst.name,
       loader: inst.loader,
+      server: serverAddr || null,
     });
-    playStatus.textContent = `Game started (pid ${r.pid}).`;
     launchBar.hidden = true;
     try {
       await invoke("touch_account", { id: acc.id });
@@ -614,3 +618,44 @@ logBtn.onclick = async () => {
     gameLog.textContent = `No log: ${e}`;
   }
 };
+function renderServers(servers: SavedServer[]) {
+  serversEl.innerHTML = "";
+  for (const s of servers) {
+    const row = document.createElement("div");
+    row.className = "card";
+    const label = document.createElement("span");
+    label.textContent = `${s.name} — ${s.address}${s.last_ping_ms == null ? "" : ` (${s.last_ping_ms} ms)`}`;
+    const ping = document.createElement("button");
+    ping.textContent = "Ping";
+    ping.onclick = async () => {
+      ping.disabled = true;
+      try {
+        const updated = await invoke<SavedServer>("ping_server", { id: s.id });
+        label.textContent = `${updated.name} — ${updated.address} (${updated.last_ping_ms} ms)`;
+      } catch (e) { label.textContent = `${s.name} — ping failed: ${e}`; }
+      ping.disabled = false;
+    };
+    const remove = document.createElement("button");
+    remove.textContent = "Remove";
+    remove.className = "danger";
+    remove.onclick = async () => {
+      renderServers(await invoke<SavedServer[]>("remove_server", { id: s.id }));
+      refreshPlaySelectors();
+    };
+    row.append(label, ping, remove);
+    serversEl.appendChild(row);
+  }
+  if (!servers.length) serversEl.textContent = "No saved servers yet.";
+}
+
+addServerBtn.onclick = async () => {
+  try {
+    const list = await invoke<SavedServer[]>("add_server", { name: serverName.value.trim(), address: serverAddress.value.trim() });
+    renderServers(list);
+    refreshPlaySelectors();
+    serverName.value = "";
+    serverAddress.value = "";
+  } catch (e) { serversEl.textContent = `Add failed: ${e}`; }
+};
+
+invoke<SavedServer[]>("list_servers").then(renderServers);
