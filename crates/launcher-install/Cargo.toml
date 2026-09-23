@@ -10,4 +10,5 @@ thiserror = "2"
 reqwest = { version = "0.12" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs"] }
 sha1 = "0.10"
+zip = "2"
 launcher-core = { path = "../launcher-core" }
