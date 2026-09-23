@@ -151,15 +151,29 @@ function renderInstances(list: Instance[]) {
     restoreBtn.textContent = "Restore";
     restoreBtn.onclick = async () => {
       try {
-        const backups = await invoke<{ file_name: string; created_at: string }[]>("list_backups", { instance: i.name });
+        const backups = await invoke<{ file_name: string; size_bytes: number; created_at: string }[]>("list_backups", { instance: i.name });
         if (backups.length === 0) throw new Error("no backups");
-        const chosen = prompt("Backup filename to restore:", backups[0].file_name);
+        const chosen = prompt(`Restore which backup? Current saves will be overwritten.\nAvailable:\n${backups.map((b) => b.file_name).join("\n")}`, backups[0].file_name);
         if (!chosen) return;
+        if (!confirm(`Restore ${chosen}? This overwrites the current saves of ${i.name}.`)) return;
         await invoke("restore_backup", { instance: i.name, fileName: chosen });
         label.textContent = `${i.name}: restored ${chosen}`;
       } catch (e) { label.textContent = `Restore failed: ${e}`; }
     };
-    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn, cloneBtn, backupBtn, restoreBtn, delInst);
+    const manageBackupsBtn = document.createElement("button");
+    manageBackupsBtn.textContent = "Backups";
+    manageBackupsBtn.onclick = async () => {
+      try {
+        const backups = await invoke<{ file_name: string; size_bytes: number; created_at: string }[]>("list_backups", { instance: i.name });
+        if (backups.length === 0) { label.textContent = `${i.name}: no backups yet`; return; }
+        const picked = prompt(`Backups of ${i.name} (size bytes shown). Type a filename to delete it, or leave blank to keep all:\n${backups.map((b) => `${b.file_name} (${b.size_bytes} bytes)`).join("\n")}`, "");
+        if (!picked || !picked.trim()) return;
+        if (!confirm(`Delete backup ${picked.trim()}?`)) return;
+        await invoke("delete_backup", { instance: i.name, fileName: picked.trim() });
+        label.textContent = `${i.name}: deleted backup ${picked.trim()}`;
+      } catch (e) { label.textContent = `Backup management failed: ${e}`; }
+    };
+    div.append(label, modsBtn, verifyBtn, repairBtn, configureBtn, folderBtn, cloneBtn, backupBtn, restoreBtn, manageBackupsBtn, delInst);
     modsBtn.onclick = async () => {
       const files = await invoke<string[]>("list_instance_mods", { instance: i.name });
       const locked = await invoke<{ project_id: string; version_number: string; file_name: string }[]>("locked_mods", { instance: i.name });
